@@ -2,7 +2,7 @@
 
 **Author:** utkarsh  
 **Date:** December 22, 2025  
-**Version:** 3.0
+**Version:** 4.0 (Final, Verified)
 
 ---
 
@@ -97,7 +97,7 @@ This checklist incorporates the critical firmware shortcut for PCIe initializati
         ```
         pciex4_reset=0
         ```
-    -   This command instructs the firmware to leave the PCIe bus configured and active. The RP1 will be ready for communication, and its peripheral address space will be mapped and accessible at `0x1F00000000`.
+    -   These commands instruct the firmware to leave the PCIe bus configured and pre-initialize the RP1 UART, making both immediately available to a bare-metal OS. The RP1 will be ready for communication, and its peripheral address space will be mapped and accessible at `0x1F00000000`.
 
 3.  **Implement a UART Driver (via RP1):**
     -   **Goal:** Get `printk!` working for debug output.
@@ -133,7 +133,8 @@ This checklist incorporates the critical firmware shortcut for PCIe initializati
         arm_64bit=1
         kernel=kernel8.img
         enable_uart=1
-        pciex4_reset=0  # Critical shortcut for PCIe
+        pciex4_reset=0      # Critical: Leaves PCIe initialized
+enable_rp1_uart=1  # Critical: Enables RP1 UART for bare metal
         ```
 
 ### Phase 4: Testing
@@ -146,7 +147,7 @@ This checklist incorporates the critical firmware shortcut for PCIe initializati
 
 | Risk                               | Mitigation                                                                                                                              |
 |------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| **Firmware Dependency**            | **(New)** The `pciex4_reset=0` shortcut makes the OS dependent on the firmware for PCIe setup. For a true bare-metal OS, this would eventually need to be replaced with a custom PCIe driver, but it is acceptable for this project's scope. |
+| **Firmware Dependency**            | **(New)** The `pciex4_reset=0` and `enable_rp1_uart=1` shortcuts make the OS dependent on the firmware for initial hardware setup. For a true bare-metal OS, this would eventually need to be replaced with a custom PCIe driver, but it is acceptable for this project's scope. |
 | **Incomplete RP1 Documentation**   | The official RP1 datasheet is a draft [1]. Supplement with community reverse-engineering efforts [2] and be prepared for trial-and-error. |
 | **MMU and Caching Issues**         | Bare-metal MMU setup is complex. Initially, use a simple identity mapping for the `0x1F00000000` PCIe address space. |
 
