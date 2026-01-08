@@ -2,18 +2,31 @@
 name = "riscv-kernel-demo"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
 
+# This is a freestanding kernel binary
+# No std, no OS, no libc
 [dependencies]
 riscv = "0.11"
 
+# Used to assemble boot.S and handle low-level objects
 [build-dependencies]
 cc = "1.0"
 
+# Kernel = abort on panic (no unwinding, no runtime)
 [profile.dev]
 panic = "abort"
+opt-level = 0
+debug = true
 
 [profile.release]
 panic = "abort"
+opt-level = "z"
+lto = true
+codegen-units = 1
+debug = false
 
+# IMPORTANT:
+# This crate is intentionally NOT part of the main workspace.
+# RISC-V support is experimental and isolated.
 [workspace]
-# This is a standalone project, not part of the main workspace
