@@ -4,6 +4,7 @@ pub mod dtb;
 pub mod exceptions;
 pub mod gic;
 pub mod interrupts;
+pub mod mem;
 pub mod paging;
 pub mod platform;
 pub mod shutdown;
