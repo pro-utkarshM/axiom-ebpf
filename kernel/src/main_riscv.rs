@@ -9,7 +9,7 @@ use riscv::asm::wfi;
 
 #[unsafe(export_name = "kernel_main")]
 unsafe extern "C" fn main() -> ! {
-    info!("Muffin OS RISC-V Kernel");
+    info!("axiom-ebpf RISC-V Kernel");
     info!("=======================");
     
     // Initialize basic kernel subsystems

@@ -1,6 +1,6 @@
 # Architecture Support
 
-Muffin OS now supports multiple architectures through an architecture abstraction layer.
+axiom-ebpf now supports multiple architectures through an architecture abstraction layer.
 
 ## Supported Architectures
 

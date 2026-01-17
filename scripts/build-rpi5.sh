@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Muffin OS kernel for Raspberry Pi 5
+# Build axiom-ebpf kernel for Raspberry Pi 5
 #
 # This script builds the kernel for the aarch64-unknown-none target
 # with the rpi5 feature enabled, then creates a raw binary suitable
@@ -12,7 +12,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 TARGET="aarch64-unknown-none"
 PROFILE="${1:-release}"
 
-echo "=== Building Muffin OS for Raspberry Pi 5 ==="
+echo "=== Building axiom-ebpf for Raspberry Pi 5 ==="
 echo "Profile: $PROFILE"
 echo ""
 

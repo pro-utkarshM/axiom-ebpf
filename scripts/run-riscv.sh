@@ -4,7 +4,7 @@ set -e
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Running Muffin OS RISC-V Demo Kernel in QEMU..."
+echo "Running axiom-ebpf RISC-V Demo Kernel in QEMU..."
 echo "================================================"
 echo ""
 

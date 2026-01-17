@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy Muffin OS to Raspberry Pi 5 SD card
+# Deploy axiom-ebpf to Raspberry Pi 5 SD card
 #
 # Usage: ./scripts/deploy-rpi5.sh /path/to/sdcard/boot
 #
@@ -45,7 +45,7 @@ if [ ! -f "$KERNEL_IMG" ]; then
     exit 1
 fi
 
-echo "=== Deploying Muffin OS to Raspberry Pi 5 ==="
+echo "=== Deploying axiom-ebpf to Raspberry Pi 5 ==="
 echo "Mount point: $MOUNT_POINT"
 echo "Kernel: $KERNEL_IMG"
 echo ""
@@ -59,7 +59,7 @@ CONFIG_FILE="$MOUNT_POINT/config.txt"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Creating config.txt..."
     cat > "$CONFIG_FILE" << 'EOF'
-# Raspberry Pi 5 configuration for Muffin OS
+# Raspberry Pi 5 configuration for axiom-ebpf
 
 # Use 64-bit kernel
 arm_64bit=1

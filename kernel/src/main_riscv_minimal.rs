@@ -50,7 +50,7 @@ macro_rules! println {
 
 #[no_mangle]
 pub unsafe extern "C" fn _start_rust(hart_id: usize, dtb_addr: usize) -> ! {
-    println!("Muffin OS RISC-V Kernel");
+    println!("axiom-ebpf RISC-V Kernel");
     println!("=======================");
     println!("Hart ID: {}", hart_id);
     println!("DTB Address: 0x{:x}", dtb_addr);

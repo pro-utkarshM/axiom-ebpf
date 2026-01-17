@@ -1,10 +1,10 @@
-# Contributing to Muffin OS
+# Contributing to axiom-ebpf
 
-Welcome to Muffin OS! This guide will help you get started with contributing to this hobby x86-64 operating system kernel written in Rust.
+Welcome to axiom-ebpf! This guide will help you get started with contributing to this hobby x86-64 operating system kernel written in Rust.
 
 ## Project Overview
 
-**Muffin OS** is a bare-metal operating system kernel that boots using the Limine bootloader and runs on QEMU. The project is organized into kernel and userspace components.
+**axiom-ebpf** is a bare-metal operating system kernel that boots using the Limine bootloader and runs on QEMU. The project is organized into kernel and userspace components.
 
 - **Language:** Rust (Nightly)
 - **Target:** x86_64-unknown-none
@@ -154,7 +154,7 @@ The CI also runs twice daily on a schedule.
 
 ## Running the OS
 
-To build and run Muffin OS in QEMU:
+To build and run axiom-ebpf in QEMU:
 
 ```bash
 # Run with default settings
@@ -198,7 +198,7 @@ cargo run -- --no-run
 
 ## License
 
-Muffin OS is dual-licensed under Apache-2.0 OR MIT. All contributions must be compatible with this licensing.
+axiom-ebpf is dual-licensed under Apache-2.0 OR MIT. All contributions must be compatible with this licensing.
 
 ## Getting Help
 
@@ -220,4 +220,4 @@ Muffin OS is dual-licensed under Apache-2.0 OR MIT. All contributions must be co
 
 ---
 
-Thank you for contributing to Muffin OS! 🧁
+Thank you for contributing to axiom-ebpf! 🧁

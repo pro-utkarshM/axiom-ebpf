@@ -36,6 +36,6 @@ pub fn init() {
 
     // Print boot banner
     use core::fmt::Write;
-    let _ = writeln!(UART.lock(), "\n=== Muffin OS on Raspberry Pi 5 ===");
+    let _ = writeln!(UART.lock(), "\n=== axiom-ebpf on Raspberry Pi 5 ===");
     let _ = writeln!(UART.lock(), "Platform initialized");
 }

@@ -1,8 +1,8 @@
-# Muffin OS - Copilot Coding Agent Instructions
+# axiom-ebpf - Copilot Coding Agent Instructions
 
 ## Project Overview
 
-**Muffin OS** is a hobby x86-64 operating system kernel written in Rust. This is a bare-metal OS project that boots using the Limine bootloader and runs on QEMU. The project consists of ~124 Rust source files organized into a kernel and userspace components.
+**axiom-ebpf** is a hobby x86-64 operating system kernel written in Rust. This is a bare-metal OS project that boots using the Limine bootloader and runs on QEMU. The project consists of ~124 Rust source files organized into a kernel and userspace components.
 
 **Project Type:** Operating System Kernel (Bare Metal)
 **Primary Language:** Rust (Nightly)

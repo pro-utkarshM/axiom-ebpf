@@ -1,4 +1,4 @@
-# Multi-Architecture Strategy for Muffin OS
+# Multi-Architecture Strategy for axiom-ebpf
 
 ## Current Status
 

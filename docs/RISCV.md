@@ -40,7 +40,7 @@ See `docs/MULTI_ARCH_STRATEGY.md` for the full porting plan.
 ```
 OpenSBI v0.9
 ...
-Muffin OS RISC-V Kernel
+axiom-ebpf RISC-V Kernel
 =======================
 Hart ID: 0
 DTB Address: 0x87000000

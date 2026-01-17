@@ -1,4 +1,4 @@
-# Proposal: Porting Muffin OS to Raspberry Pi 5 with GPIO Support (Final)
+# Proposal: Porting axiom-ebpf to Raspberry Pi 5 with GPIO Support (Final)
 
 **Author:** utkarsh  
 **Date:** December 22, 2025  
@@ -8,7 +8,7 @@
 
 ## 1. Introduction
 
-This document outlines a final, technically-vetted plan for porting **Muffin OS** to the **Raspberry Pi 5**. This version incorporates critical architectural details, including the **RP1 I/O controller** and a firmware shortcut that dramatically simplifies initial development.
+This document outlines a final, technically-vetted plan for porting **axiom-ebpf** to the **Raspberry Pi 5**. This version incorporates critical architectural details, including the **RP1 I/O controller** and a firmware shortcut that dramatically simplifies initial development.
 
 This proposal provides an accurate and actionable checklist for a developer experienced in systems programming to achieve a bare-metal boot with GPIO control on the Pi 5.
 
@@ -18,7 +18,7 @@ This proposal provides an accurate and actionable checklist for a developer expe
 
 ### Primary Objectives
 
-1.  **Bare-Metal Boot:** Boot a modified Muffin OS kernel on the Pi 5, leveraging the firmware to initialize the PCIe bus.
+1.  **Bare-Metal Boot:** Boot a modified axiom-ebpf kernel on the Pi 5, leveraging the firmware to initialize the PCIe bus.
 2.  **Peripheral Access:** Access the RP1 I/O controller through its memory-mapped PCIe address space.
 3.  **GPIO Driver:** Develop a GPIO driver that communicates with the RP1.
 4.  **LED Control:** Create a kernel application to blink an LED.
@@ -42,7 +42,7 @@ This proposal provides an accurate and actionable checklist for a developer expe
 |               | LED and a resistor (e.g., 330Ω)                                      | Hardware for the GPIO test.                                |
 |               | Breadboard and jumper wires                                          | Connecting the LED to the GPIO pins.                       |
 |               | USB-to-TTL Serial Cable (e.g., PL2303, CP2102)                        | Essential for viewing kernel debug output.                 |
-| **Software**  | Rust Nightly toolchain                                               | Muffin OS is built on nightly Rust features.               |
+| **Software**  | Rust Nightly toolchain                                               | axiom-ebpf is built on nightly Rust features.               |
 |               | `aarch64-unknown-none` cross-compilation target                      | To build the kernel for the ARM64 architecture.            |
 |               | QEMU (system-aarch64)                                                | Optional, for early-stage emulation and testing.           |
 |               | Raspberry Pi firmware files (`bootcode.bin`, `start.elf`)            | Required for the Pi's boot process.                        |
@@ -155,7 +155,7 @@ enable_rp1_uart=1  # Critical: Enables RP1 UART for bare metal
 
 ## 7. Conclusion
 
-This final proposal is technically sound and provides a realistic and achievable path for porting Muffin OS to the Raspberry Pi 5. By leveraging the `pciex4_reset=0` firmware shortcut, the most significant hurdle—bare-metal PCIe initialization—is bypassed, allowing development to focus on the core task of writing peripheral drivers for the RP1.
+This final proposal is technically sound and provides a realistic and achievable path for porting axiom-ebpf to the Raspberry Pi 5. By leveraging the `pciex4_reset=0` firmware shortcut, the most significant hurdle—bare-metal PCIe initialization—is bypassed, allowing development to focus on the core task of writing peripheral drivers for the RP1.
 
 This plan correctly identifies the Pi 5's unique architecture and provides a solid foundation for a successful project.
 

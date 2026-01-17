@@ -74,7 +74,7 @@ fn build_os_disk_dir() -> PathBuf {
 
     build_dir(&disk, &file_structure::STRUCTURE);
 
-    fs::write(disk.join("var/hello.txt"), "Hello, Muffin OS!\n")
+    fs::write(disk.join("var/hello.txt"), "Hello, axiom-ebpf!\n")
         .expect("should be able to write hello.txt");
 
     disk

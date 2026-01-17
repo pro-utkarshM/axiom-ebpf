@@ -1,6 +1,6 @@
 # kernel_bpf - Single-Source eBPF Kernel with Build-Time Physical Profiles
 
-A profile-constrained eBPF subsystem for Muffin OS where the same source code serves both cloud and embedded deployments. The difference between profiles is expressed through build-time selection and compile-time erasure, not code forks.
+A profile-constrained eBPF subsystem for axiom-ebpf where the same source code serves both cloud and embedded deployments. The difference between profiles is expressed through build-time selection and compile-time erasure, not code forks.
 
 ## Guiding Principle
 
@@ -283,4 +283,4 @@ Using `PhantomData<fn() -> P>` instead of `PhantomData<P>` ensures the profile m
 
 ## License
 
-This crate is part of Muffin OS and follows its licensing terms.
+This crate is part of axiom-ebpf and follows its licensing terms.

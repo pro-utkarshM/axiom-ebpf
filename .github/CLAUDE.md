@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Muffin OS is a hobby x86-64 operating system kernel written in Rust. It boots via the Limine bootloader and runs on QEMU. The project aims for POSIX.1-2024 compliance.
+axiom-ebpf is a hobby x86-64 operating system kernel written in Rust. It boots via the Limine bootloader and runs on QEMU. The project aims for POSIX.1-2024 compliance.
 
 **Primary Target:** x86_64-unknown-none (bare-metal)
 **Toolchain:** Rust Nightly (configured in rust-toolchain.toml)

@@ -1,8 +1,8 @@
-# Muffin OS Architecture Porting Design
+# axiom-ebpf Architecture Porting Design
 
 ## Overview
 
-This document outlines the design and implementation strategy for porting Muffin OS from x86-64 to RISC-V and ARM architectures.
+This document outlines the design and implementation strategy for porting axiom-ebpf from x86-64 to RISC-V and ARM architectures.
 
 ## Current Architecture Dependencies
 
