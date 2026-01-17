@@ -1,86 +1,287 @@
 # axiom-ebpf
 
-[![Rust](https://github.com/pro-utkarshM/axiom-ebpf/actions/workflows/build.yml/badge.svg)](https://github.com/pro-utkarshM/axiom-ebpf/actions/workflows/build.yml)
+**A multi-architecture, bare-metal operating system kernel in Rust, exploring eBPF as a first-class kernel execution model.**
 
-A hobby x86-64 operating system kernel written in Rust, designed to be a general-purpose OS with POSIX.1-2024 compliance as a goal.
+---
 
 ## Overview
 
-axiom-ebpf is a bare-metal operating system kernel that boots using the Limine bootloader and runs on QEMU. The project is structured as a modular workspace with a kernel and userspace components, all written in Rust.
+`axiom-ebpf` is a research-oriented operating system kernel written in Rust, designed to run **directly on hardware** across multiple architectures (x86_64, AArch64, RISC-V).
+
+The project investigates a central question:
+
+> *What does an operating system look like if safe, verified programs (eBPF) are treated as a core kernel abstraction rather than a bolt-on feature?*
+
+Unlike Linux-based eBPF work, `axiom-ebpf` is **not built on top of an existing kernel**. Instead, it explores eBPF integration at the **OS design level**, alongside memory management, filesystems, syscalls, and userspace.
+
+---
+
+## Goals
+
+* Build a **clean, modular, Rust-based kernel**
+* Support **multiple CPU architectures** from a single codebase
+* Provide a **stable kernel ↔ userspace ABI**
+* Integrate **eBPF as a kernel-native execution mechanism**
+* Move toward **POSIX.1-2024 compatibility**
+* Remain suitable for **research, experimentation, and formal reasoning**
+
+This is **not** a production OS. Correctness, clarity, and extensibility are prioritized over feature completeness.
+
+---
 
 ## Key Features
 
-- **Multi-threading support** - Cooperative and preemptive multitasking with process and thread management
-- **VirtIO drivers** - Support for VirtIO block devices and GPU with PCI device discovery
-- **Virtual filesystem (VFS)** - Abstraction layer with ext2 filesystem support and devfs
-- **Memory management** - Physical and virtual memory allocators with custom address space management
-- **POSIX system interface** - Eventually POSIX-compatible system interface with support for file operations, threading primitives (pthread), memory management, and more (work in progress)
-- **ACPI support** - Power management and hardware discovery via ACPI tables
-- **ELF loader** - Dynamic ELF binary loading for userspace programs
-- **Userspace foundation** - Init process and minimal C library (minilib) for userspace development
-- **Stack unwinding** - Kernel panic backtraces for debugging
+### Kernel Architecture
 
-## POSIX Compliance
+* Bare-metal kernel (no host OS)
+* Boots via the **Limine** bootloader
+* Modular subsystem design using Rust crates
+* Architecture-specific code cleanly isolated
 
-axiom-ebpf aims for basic POSIX.1-2024 compliance, implementing standard system functions to support portable POSIX-compliant applications. The kernel provides POSIX-compatible interfaces for file operations, process management, threading, and memory management.
+### Memory Management
 
-## Building and Running
+* Physical memory allocator
+* Virtual memory with paging and address spaces
+* Clear separation between physical and virtual layers
+
+### Process & Execution Model
+
+* Kernel-managed processes and threads
+* Syscall interface designed for POSIX alignment
+* ELF loader for userspace binaries
+
+### Filesystems
+
+* Virtual File System (VFS) abstraction
+* `devfs` support
+* Extensible filesystem interface
+
+### eBPF Integration (Core Research Area)
+
+* Kernel-resident eBPF subsystem
+* Safe, verifier-backed execution model
+* Designed to evolve toward:
+
+  * Runtime kernel instrumentation
+  * Policy enforcement
+  * Observability and safety logic
+
+### Multi-Architecture Support
+
+* x86_64
+* AArch64
+* RISC-V (actively developed)
+* Architecture-neutral core where possible
+
+---
+
+## Repository Structure
+
+```
+.
+├── Cargo.toml          # Workspace definition
+├── build.rs            # Workspace build logic
+├── limine.conf         # Bootloader configuration
+├── docs/               # Design and architecture documentation
+├── kernel/             # The operating system kernel
+├── userspace/          # Userspace programs and libraries
+├── scripts/            # Build and deployment helpers
+└── src/main.rs         # Build orchestration entry
+```
+
+---
+
+## Documentation (`docs/`)
+
+Architecture and design decisions are documented explicitly:
+
+```
+docs/
+├── ARCHITECTURE_SUPPORT.md   # Supported CPUs and constraints
+├── MULTI_ARCH_STRATEGY.md    # Cross-architecture design approach
+├── PORTING_DESIGN.md         # How to port to new platforms
+├── RISCV.md                  # RISC-V–specific notes
+├── RPI5_PROPOSAL.md          # Raspberry Pi 5 bring-up plan
+└── RPI5_TODO.md              # Pi 5 implementation checklist
+```
+
+Reading these is strongly recommended before contributing.
+
+---
+
+## Kernel Layout (`kernel/`)
+
+The kernel is organized as a **collection of internal crates**, each representing a subsystem.
+
+### Kernel Subsystems
+
+```
+kernel/crates/
+├── kernel_abi              # Kernel ↔ userspace ABI definitions
+├── kernel_bpf              # eBPF core subsystem
+├── kernel_devfs            # Device filesystem
+├── kernel_device           # Device abstraction layer
+├── kernel_elfloader        # ELF binary loader
+├── kernel_memapi           # Memory management APIs
+├── kernel_pci              # PCI enumeration and drivers
+├── kernel_physical_memory  # Physical memory allocator
+├── kernel_virtual_memory   # Paging and address spaces
+├── kernel_syscall          # Syscall dispatch
+└── kernel_vfs              # Virtual filesystem layer
+```
+
+Each crate is designed to be:
+
+* Logically isolated
+* Testable where possible
+* Replaceable without destabilizing the kernel
+
+---
+
+### Core Kernel Source
+
+```
+kernel/src/
+├── arch/              # Architecture-specific implementations
+├── driver/            # Hardware drivers
+├── mem/               # Memory glue code
+├── syscall/           # Syscall handlers
+├── file/              # File abstractions
+├── mcore/             # Multi-core support
+├── acpi.rs
+├── apic.rs
+├── hpet.rs
+├── time.rs
+├── backtrace.rs
+├── limine.rs
+├── log.rs
+├── serial.rs
+├── sse.rs
+└── main.rs            # Kernel entry point
+```
+
+Separate entry points exist for different architectures, including minimal RISC-V bring-up paths.
+
+---
+
+## Userspace (`userspace/`)
+
+Userspace is intentionally minimal and tightly controlled.
+
+```
+userspace/
+├── init/            # Initial userspace process
+├── minilib/         # Minimal userspace support library
+└── file_structure/  # Filesystem layout definitions
+```
+
+Design goals:
+
+* No dependency on glibc
+* Explicit ABI boundary
+* Gradual POSIX feature adoption
+
+---
+
+## Building & Running
 
 ### Prerequisites
 
-axiom-ebpf is designed to be easy to build with minimal dependencies:
+* Rust (nightly, configured via `rust-toolchain.toml`)
+* `xorriso` (ISO creation)
+* `e2fsprogs` (filesystem utilities)
+* QEMU (optional, for emulation)
 
 ```bash
-# System dependencies (xorriso for ISO creation, e2fsprogs for filesystem)
-sudo apt update && sudo apt install -y xorriso e2fsprogs
-
-# QEMU for running the OS (optional, only needed to run)
-sudo apt install -y qemu-system
+sudo apt install xorriso e2fsprogs qemu-system
 ```
 
-Rust toolchain is automatically configured via `rust-toolchain.toml` (nightly channel with required components).
+---
 
-### Quick Start
+### Quick Start (QEMU)
 
 ```bash
-# Build and run in QEMU
+# Build and run
 cargo run
 
-# Run without GUI
+# Headless mode
 cargo run -- --headless
 
-# Run with debugging support (GDB on localhost:1234)
+# With GDB debugging (localhost:1234)
 cargo run -- --debug
 
-# Customize resources
+# Custom resources
 cargo run -- --smp 4 --mem 512M
 ```
 
-### Building
+---
+
+### Architecture-Specific Builds
 
 ```bash
-# Build all workspace components
-cargo build
+# RISC-V
+./scripts/build-riscv.sh
+./scripts/run-riscv.sh
 
-# Build in release mode
-cargo build --release
+# Raspberry Pi 5
+./scripts/build-rpi5.sh
+./scripts/deploy-rpi5.sh
 ```
 
-This creates a bootable ISO image (`axiom.iso`) and ext2 disk image.
+---
 
-### Testing
+## Testing
+
+Subsystems extracted into standalone crates can be tested on the host:
 
 ```bash
-# Run tests on workspace crates
 cargo test
 ```
 
-**Note:** The kernel binary itself uses a custom linker script for bare-metal execution and cannot run standard unit tests. Testable functionality is extracted into separate crates (like `kernel_vfs`, `kernel_physical_memory`, etc.) that can be tested on the host.
+The kernel binary itself cannot run standard unit tests due to bare-metal constraints.
+
+---
+
+## Current Status
+
+* Active research and experimentation
+* Core kernel subsystems functional
+* RISC-V and Raspberry Pi 5 bring-up in progress
+* eBPF integration under active development
+
+Expect breaking changes.
+
+---
+
+## Who This Is For
+
+This project is intended for:
+
+* OS / kernel engineers
+* Systems researchers
+* Embedded and architecture researchers
+* Students exploring kernel design beyond Linux
+* Anyone interested in **eBPF as an OS primitive**
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to build, test, and submit changes.
+Contributions are welcome, especially in:
+
+* Architecture bring-up
+* Memory management
+* eBPF verifier and runtime design
+* Syscall and ABI design
+* Documentation and correctness proofs
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
+
+---
 
 ## License
 
-axiom-ebpf is dual-licensed under Apache-2.0 OR MIT. See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
+Dual-licensed under:
+
+* **Apache License 2.0**
+* **MIT License**
