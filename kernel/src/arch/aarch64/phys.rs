@@ -9,7 +9,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use spin::Mutex;
 
 use super::dtb;
-use super::mem::{PAGE_SIZE, PAGE_SHIFT};
+use super::mem::{PAGE_SHIFT, PAGE_SIZE};
 
 /// Physical frame number
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -83,7 +83,8 @@ impl BumpAllocator {
             let available_frames = region_frames.saturating_sub(skip_frames);
 
             if self.next_frame_in_region < available_frames {
-                let frame_addr = region.base + (available_start + self.next_frame_in_region) * PAGE_SIZE;
+                let frame_addr =
+                    region.base + (available_start + self.next_frame_in_region) * PAGE_SIZE;
                 self.next_frame_in_region += 1;
                 self.total_allocated += 1;
                 return Some(PhysFrame::from_addr(frame_addr));

@@ -235,11 +235,35 @@ cargo run -- --smp 4 --mem 512M
 Subsystems extracted into standalone crates can be tested on the host:
 
 ```bash
-# cloud-profile <kernel-bpf>
-cargo test --features cloud-profile
+# Run all tests (uses default features)
+cargo test
 
-# embedded-profile <kernel-bpf>
-cargo test --features embedded-profile
+# Test a specific crate
+cargo test -p kernel_vfs
+cargo test -p kernel_physical_memory
+```
+
+### Testing kernel_bpf
+
+The `kernel_bpf` crate requires a profile feature. By default, it uses `embedded-profile`:
+
+```bash
+# Test with embedded profile (default)
+cargo test -p kernel_bpf
+
+# Test with cloud profile
+cargo test -p kernel_bpf --no-default-features --features cloud-profile
+
+# Test with embedded profile explicitly
+cargo test -p kernel_bpf --no-default-features --features embedded-profile
+```
+
+### Miri (undefined behavior detection)
+
+```bash
+cargo miri setup
+cargo miri test -p kernel_abi
+cargo miri test -p kernel_bpf --no-default-features --features cloud-profile
 ```
 
 The kernel binary itself cannot run standard unit tests due to bare-metal constraints.

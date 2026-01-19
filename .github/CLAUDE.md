@@ -30,9 +30,15 @@ cargo test -p kernel_abi
 cargo test -p kernel_vfs
 cargo test -p kernel_physical_memory
 
+# Test kernel_bpf (requires profile feature)
+cargo test -p kernel_bpf                                              # uses default (embedded-profile)
+cargo test -p kernel_bpf --no-default-features --features cloud-profile
+cargo test -p kernel_bpf --no-default-features --features embedded-profile
+
 # Miri tests for undefined behavior detection
 cargo miri setup
 cargo miri test -p kernel_abi
+cargo miri test -p kernel_bpf --no-default-features --features cloud-profile
 
 # Run in QEMU
 cargo run                      # Default
@@ -63,6 +69,7 @@ kernel/                          # Main bare-metal kernel
 │   └── syscall/                # System call interface
 ├── crates/                     # Testable kernel subsystems (run tests here)
 │   ├── kernel_abi/
+│   ├── kernel_bpf/            # eBPF subsystem (requires profile feature)
 │   ├── kernel_vfs/
 │   ├── kernel_physical_memory/
 │   ├── kernel_virtual_memory/

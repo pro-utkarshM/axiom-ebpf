@@ -203,10 +203,7 @@ fn handle_data_abort(elr: u64, far: u64, iss: u64) {
             }
         }
         Some(DataFaultCode::AlignmentFault) => {
-            panic!(
-                "Alignment fault at PC={:#x}, address={:#x}",
-                elr, far
-            );
+            panic!("Alignment fault at PC={:#x}, address={:#x}", elr, far);
         }
         Some(code) => {
             // Access flag faults - need to set AF bit

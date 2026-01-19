@@ -8,6 +8,8 @@ use core::error::Error;
 use core::panic::PanicInfo;
 
 use ext2::Ext2Fs;
+#[cfg(target_arch = "aarch64")]
+use kernel::arch::traits::Architecture;
 use kernel::driver::KernelDeviceId;
 use kernel::driver::block::BlockDevices;
 use kernel::file::ext2::VirtualExt2Fs;
@@ -24,9 +26,6 @@ use log::{error, info};
 use spin::RwLock;
 #[cfg(target_arch = "x86_64")]
 use x86_64::instructions::hlt;
-
-#[cfg(target_arch = "aarch64")]
-use kernel::arch::traits::Architecture;
 
 #[cfg(not(target_arch = "x86_64"))]
 fn hlt() {

@@ -7,6 +7,6 @@ edition = "2024"
 spin.workspace = true
 
 [features]
-default = []
+default = ["embedded-profile"]
 cloud-profile = []
 embedded-profile = []

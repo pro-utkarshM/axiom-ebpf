@@ -134,17 +134,24 @@ pub mod pte_flags {
     }
 
     /// Common combinations
-    pub const KERNEL_RWX: u64 = VALID | PAGE | AF | SH_INNER | AP_RW_EL1 | attr_index(mair::NORMAL_WB);
+    pub const KERNEL_RWX: u64 =
+        VALID | PAGE | AF | SH_INNER | AP_RW_EL1 | attr_index(mair::NORMAL_WB);
     pub const KERNEL_RW: u64 = KERNEL_RWX | PXN | UXN;
-    pub const KERNEL_RO: u64 = VALID | PAGE | AF | SH_INNER | AP_RO_EL1 | attr_index(mair::NORMAL_WB) | PXN | UXN;
-    pub const KERNEL_RX: u64 = VALID | PAGE | AF | SH_INNER | AP_RO_EL1 | attr_index(mair::NORMAL_WB) | UXN;
+    pub const KERNEL_RO: u64 =
+        VALID | PAGE | AF | SH_INNER | AP_RO_EL1 | attr_index(mair::NORMAL_WB) | PXN | UXN;
+    pub const KERNEL_RX: u64 =
+        VALID | PAGE | AF | SH_INNER | AP_RO_EL1 | attr_index(mair::NORMAL_WB) | UXN;
 
-    pub const USER_RWX: u64 = VALID | PAGE | AF | SH_INNER | AP_RW_ALL | attr_index(mair::NORMAL_WB);
+    pub const USER_RWX: u64 =
+        VALID | PAGE | AF | SH_INNER | AP_RW_ALL | attr_index(mair::NORMAL_WB);
     pub const USER_RW: u64 = USER_RWX | PXN | UXN;
-    pub const USER_RO: u64 = VALID | PAGE | AF | SH_INNER | AP_RO_ALL | attr_index(mair::NORMAL_WB) | PXN | UXN;
-    pub const USER_RX: u64 = VALID | PAGE | AF | SH_INNER | AP_RO_ALL | attr_index(mair::NORMAL_WB) | PXN;
+    pub const USER_RO: u64 =
+        VALID | PAGE | AF | SH_INNER | AP_RO_ALL | attr_index(mair::NORMAL_WB) | PXN | UXN;
+    pub const USER_RX: u64 =
+        VALID | PAGE | AF | SH_INNER | AP_RO_ALL | attr_index(mair::NORMAL_WB) | PXN;
 
-    pub const DEVICE: u64 = VALID | PAGE | AF | AP_RW_EL1 | attr_index(mair::DEVICE_NGNRNE) | PXN | UXN;
+    pub const DEVICE: u64 =
+        VALID | PAGE | AF | AP_RW_EL1 | attr_index(mair::DEVICE_NGNRNE) | PXN | UXN;
 
     use super::mair;
 }

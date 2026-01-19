@@ -6,8 +6,7 @@
 use core::ptr;
 
 use super::mem::{
-    pte_flags, mair, PAGE_SIZE, ENTRIES_PER_TABLE,
-    L0_SHIFT, L1_SHIFT, L2_SHIFT, L3_SHIFT,
+    ENTRIES_PER_TABLE, L0_SHIFT, L1_SHIFT, L2_SHIFT, L3_SHIFT, PAGE_SIZE, mair, pte_flags,
 };
 use super::phys::{self, PhysFrame};
 
@@ -181,9 +180,15 @@ impl PageTableWalker {
         let indices = va_to_indices(virt);
 
         let l0 = unsafe { &mut *self.root };
-        let l1 = self.get_table(l0, indices[0]).ok_or("L1 table not present")?;
-        let l2 = self.get_table(l1, indices[1]).ok_or("L2 table not present")?;
-        let l3 = self.get_table(l2, indices[2]).ok_or("L3 table not present")?;
+        let l1 = self
+            .get_table(l0, indices[0])
+            .ok_or("L1 table not present")?;
+        let l2 = self
+            .get_table(l1, indices[1])
+            .ok_or("L2 table not present")?;
+        let l3 = self
+            .get_table(l2, indices[2])
+            .ok_or("L3 table not present")?;
 
         let entry = l3.entry_mut(indices[3]);
         if !entry.is_valid() {
@@ -395,7 +400,7 @@ pub unsafe fn configure_tcr() {
                  | (0b01 << 26)     // ORGN1 = Write-back
                  | (0b01 << 8)      // IRGN0 = Write-back
                  | (0b01 << 24)     // IRGN1 = Write-back
-                 | (0b101 << 32);   // IPS = 48-bit PA (256TB)
+                 | (0b101 << 32); // IPS = 48-bit PA (256TB)
 
     unsafe {
         core::arch::asm!(

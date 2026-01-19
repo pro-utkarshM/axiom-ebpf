@@ -46,11 +46,7 @@ impl SwitchFrame {
 /// * `new_ttbr0` - The new TTBR0 value (user page table), or 0 to keep current
 ///
 #[unsafe(naked)]
-pub unsafe extern "C" fn switch_impl(
-    _old_sp: *mut usize,
-    _new_sp: usize,
-    _new_ttbr0: usize,
-) {
+pub unsafe extern "C" fn switch_impl(_old_sp: *mut usize, _new_sp: usize, _new_ttbr0: usize) {
     // x0 = old_sp (pointer to save current SP)
     // x1 = new_sp (new stack pointer value)
     // x2 = new_ttbr0 (new page table, 0 = don't switch)
@@ -63,14 +59,11 @@ pub unsafe extern "C" fn switch_impl(
         "stp x23, x24, [sp, #-16]!",
         "stp x21, x22, [sp, #-16]!",
         "stp x19, x20, [sp, #-16]!",
-
         // Save current SP to *old_sp
         "mov x9, sp",
         "str x9, [x0]",
-
         // Load new SP
         "mov sp, x1",
-
         // Switch page tables if new_ttbr0 != 0
         "cbz x2, 1f",
         "msr ttbr0_el1, x2",
@@ -79,7 +72,6 @@ pub unsafe extern "C" fn switch_impl(
         "dsb ish",
         "isb",
         "1:",
-
         // Restore callee-saved registers from new stack
         "ldp x19, x20, [sp], #16",
         "ldp x21, x22, [sp], #16",
@@ -87,7 +79,6 @@ pub unsafe extern "C" fn switch_impl(
         "ldp x25, x26, [sp], #16",
         "ldp x27, x28, [sp], #16",
         "ldp x29, x30, [sp], #16",
-
         // Return to new task (x30/LR has the return address)
         "ret",
     );
@@ -162,11 +153,7 @@ pub unsafe extern "C" fn task_entry_trampoline() {
 /// Initialize a stack for a new task with trampoline
 ///
 /// Like init_task_stack but uses a trampoline to properly pass the argument.
-pub fn init_task_stack_with_arg(
-    stack_top: usize,
-    entry_point: usize,
-    arg: usize,
-) -> usize {
+pub fn init_task_stack_with_arg(stack_top: usize, entry_point: usize, arg: usize) -> usize {
     let stack_top = stack_top & !0xF;
     let frame_ptr = (stack_top - SwitchFrame::SIZE) as *mut SwitchFrame;
 

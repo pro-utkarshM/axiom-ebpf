@@ -5,7 +5,7 @@
 use core::ptr;
 
 use super::dtb;
-use super::mem::{self, pte_flags, PAGE_SIZE};
+use super::mem::{self, PAGE_SIZE, pte_flags};
 use super::paging::{self, PageTable, PageTableWalker};
 use super::phys::{self, PhysFrame};
 
@@ -90,7 +90,8 @@ unsafe fn setup_kernel_page_tables(total_memory: usize) {
 
         // Also map in higher-half (same physical memory)
         if i < 512 {
-            *boot_tables.l1_high.entry_mut(i) = paging::PageTableEntry::block(phys_addr, block_flags);
+            *boot_tables.l1_high.entry_mut(i) =
+                paging::PageTableEntry::block(phys_addr, block_flags);
         }
     }
 

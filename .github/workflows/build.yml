@@ -67,9 +67,10 @@ jobs:
       - uses: actions/checkout@v4
       - id: set-matrix
         run: |
-          export PACKAGES=$(ls kernel/crates | head -c -1 | jq -Rsc 'split("\n")')
-          echo "::set-output name=matrix::{\"package\":${PACKAGES}}"
-    
+          # Exclude kernel_bpf - it has its own job with profile matrix
+          export PACKAGES=$(ls kernel/crates | grep -v kernel_bpf | head -c -1 | jq -Rsc 'split("\n")')
+          echo "matrix={\"package\":${PACKAGES}}" >> $GITHUB_OUTPUT
+
   miri:
     name: "Miri"
     runs-on: ubuntu-latest
@@ -88,6 +89,25 @@ jobs:
       - name: Miri
         run: |
           cargo miri test -p ${{ matrix.package }}
+
+  miri-kernel-bpf:
+    name: "Miri (kernel_bpf)"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [cloud-profile, embedded-profile]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - name: Miri Setup
+        run: |
+          cargo miri setup
+      - name: Miri
+        run: |
+          cargo miri test -p kernel_bpf --no-default-features --features ${{ matrix.profile }}
   
   
 
@@ -97,6 +117,7 @@ jobs:
     needs:
       - test
       - miri
+      - miri-kernel-bpf
     steps:
       - uses: actions/checkout@v4
       - name: Install latest nightly
