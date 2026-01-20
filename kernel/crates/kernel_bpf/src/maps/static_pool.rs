@@ -21,6 +21,7 @@
 //! let remaining = StaticPool::remaining();
 //! ```
 
+use core::cell::UnsafeCell;
 use spin::Mutex;
 
 /// Default pool size for embedded systems (64KB).
@@ -32,26 +33,33 @@ const DEFAULT_POOL_SIZE: usize = 64 * 1024;
 static POOL: StaticPoolInner = StaticPoolInner::new();
 
 /// Internal pool state.
+///
+/// The buffer is separated from the metadata to avoid Stacked Borrows violations.
+/// The metadata is protected by a mutex, while the buffer is accessed via raw pointers.
 struct StaticPoolInner {
-    /// Pool state protected by mutex
-    state: Mutex<PoolState>,
+    /// Pool metadata protected by mutex
+    metadata: Mutex<PoolMetadata>,
+    /// Raw buffer - accessed via raw pointers only after lock is acquired
+    buffer: UnsafeCell<[u8; DEFAULT_POOL_SIZE]>,
 }
 
-/// Pool allocation state.
-struct PoolState {
-    /// Raw buffer
-    buffer: [u8; DEFAULT_POOL_SIZE],
+// Safety: The buffer is only accessed while holding the metadata lock,
+// ensuring exclusive access. The UnsafeCell is used to allow returning
+// 'static mut slices that outlive the lock guard.
+unsafe impl Sync for StaticPoolInner {}
+
+/// Pool allocation metadata.
+struct PoolMetadata {
     /// Current allocation watermark
     watermark: usize,
     /// Number of allocations
     alloc_count: usize,
 }
 
-impl PoolState {
-    /// Create a new pool state.
+impl PoolMetadata {
+    /// Create new pool metadata.
     const fn new() -> Self {
         Self {
-            buffer: [0u8; DEFAULT_POOL_SIZE],
             watermark: 0,
             alloc_count: 0,
         }
@@ -62,7 +70,8 @@ impl StaticPoolInner {
     /// Create a new static pool.
     const fn new() -> Self {
         Self {
-            state: Mutex::new(PoolState::new()),
+            metadata: Mutex::new(PoolMetadata::new()),
+            buffer: UnsafeCell::new([0u8; DEFAULT_POOL_SIZE]),
         }
     }
 }
@@ -101,31 +110,35 @@ impl StaticPool {
     /// The returned memory is valid for the lifetime of the program.
     /// It should not be freed - the pool manages the memory.
     pub fn allocate(size: usize) -> Option<&'static mut [u8]> {
-        let mut state = POOL.state.lock();
+        // Get buffer pointer before locking to avoid Stacked Borrows issues.
+        // The pointer is stable because POOL is a static.
+        let buffer_ptr = POOL.buffer.get() as *mut u8;
+
+        let mut metadata = POOL.metadata.lock();
 
         // Align to 8 bytes
         let aligned_size = (size + 7) & !7;
 
         // Check if we have enough space
-        if state.watermark + aligned_size > DEFAULT_POOL_SIZE {
+        if metadata.watermark + aligned_size > DEFAULT_POOL_SIZE {
             return None;
         }
 
-        let start = state.watermark;
-        state.watermark += aligned_size;
-        state.alloc_count += 1;
+        let start = metadata.watermark;
+        metadata.watermark += aligned_size;
+        metadata.alloc_count += 1;
 
         // Safety: We're returning a unique mutable slice from the pool.
         // The slice is valid for 'static because the pool lives for
-        // the entire program duration.
-        let ptr = state.buffer.as_mut_ptr();
-        Some(unsafe { core::slice::from_raw_parts_mut(ptr.add(start), size) })
+        // the entire program duration. The buffer pointer is obtained
+        // independently of the lock, avoiding Stacked Borrows violations.
+        Some(unsafe { core::slice::from_raw_parts_mut(buffer_ptr.add(start), size) })
     }
 
     /// Get the remaining capacity in the pool.
     pub fn remaining() -> usize {
-        let state = POOL.state.lock();
-        DEFAULT_POOL_SIZE - state.watermark
+        let metadata = POOL.metadata.lock();
+        DEFAULT_POOL_SIZE - metadata.watermark
     }
 
     /// Get the total pool size.
@@ -135,14 +148,14 @@ impl StaticPool {
 
     /// Get the number of allocations made.
     pub fn allocation_count() -> usize {
-        let state = POOL.state.lock();
-        state.alloc_count
+        let metadata = POOL.metadata.lock();
+        metadata.alloc_count
     }
 
     /// Get the amount of memory used.
     pub fn used() -> usize {
-        let state = POOL.state.lock();
-        state.watermark
+        let metadata = POOL.metadata.lock();
+        metadata.watermark
     }
 
     /// Reset the pool (for testing only).
@@ -153,10 +166,12 @@ impl StaticPool {
     /// previously allocated memory. Only use in tests.
     #[cfg(test)]
     pub unsafe fn reset() {
-        let mut state = POOL.state.lock();
-        state.watermark = 0;
-        state.alloc_count = 0;
-        state.buffer = [0u8; DEFAULT_POOL_SIZE];
+        let buffer_ptr = POOL.buffer.get();
+        let mut metadata = POOL.metadata.lock();
+        metadata.watermark = 0;
+        metadata.alloc_count = 0;
+        // Zero the buffer
+        (*buffer_ptr) = [0u8; DEFAULT_POOL_SIZE];
     }
 }
 

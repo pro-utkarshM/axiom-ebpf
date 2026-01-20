@@ -522,6 +522,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Too slow under Miri - tests instruction limit timeout
     fn execute_timeout() {
         // Infinite loop (would timeout)
         let program = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)

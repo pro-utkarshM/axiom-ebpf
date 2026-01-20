@@ -733,6 +733,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Slow under Miri due to large stack allocation (512KB for cloud profile)
     fn verify_minimal_program() {
         let insns = [
             BpfInsn::mov64_imm(0, 0), // r0 = 0
@@ -744,6 +745,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Slow under Miri due to large stack allocation (512KB for cloud profile)
     fn verify_no_exit() {
         let insns = [
             BpfInsn::mov64_imm(0, 0), // r0 = 0
@@ -755,6 +757,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Slow under Miri due to large stack allocation (512KB for cloud profile)
     fn verify_division_by_zero() {
         let insns = [
             BpfInsn::mov64_imm(0, 10),      // r0 = 10
@@ -767,6 +770,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Slow under Miri due to large stack allocation (512KB for cloud profile)
     fn verify_write_to_r10() {
         let insns = [
             BpfInsn::mov64_imm(10, 0), // r10 = 0 (illegal!)
@@ -779,6 +783,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Slow under Miri due to large stack allocation (512KB for cloud profile)
     fn verify_uninitialized_register() {
         let insns = [
             BpfInsn::add64_reg(0, 2), // r0 += r2 (r2 not init, r0 not init)
