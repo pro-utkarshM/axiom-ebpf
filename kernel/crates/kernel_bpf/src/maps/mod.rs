@@ -21,6 +21,8 @@
 extern crate alloc;
 
 mod array;
+mod hash;
+mod ringbuf;
 
 #[cfg(feature = "embedded-profile")]
 mod static_pool;
@@ -28,6 +30,8 @@ mod static_pool;
 use alloc::sync::Arc;
 
 pub use array::ArrayMap;
+pub use hash::HashMap;
+pub use ringbuf::{RingBufMap, RingBufReservation};
 use spin::RwLock;
 #[cfg(feature = "embedded-profile")]
 pub use static_pool::StaticPool;

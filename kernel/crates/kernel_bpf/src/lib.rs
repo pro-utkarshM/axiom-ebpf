@@ -99,8 +99,10 @@ compile_error!(
      Use `--features cloud-profile` or `--features embedded-profile` when building."
 );
 
+pub mod attach;
 pub mod bytecode;
 pub mod execution;
+pub mod loader;
 pub mod maps;
 pub mod profile;
 pub mod scheduler;

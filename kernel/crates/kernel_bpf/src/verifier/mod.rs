@@ -39,8 +39,10 @@ mod cfg;
 mod core;
 mod error;
 mod state;
+mod streaming;
 
 pub use core::Verifier;
+pub use streaming::StreamingVerifier;
 
 pub use cfg::ControlFlowGraph;
 pub use error::VerifyError;

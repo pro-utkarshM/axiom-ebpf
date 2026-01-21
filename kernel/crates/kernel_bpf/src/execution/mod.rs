@@ -18,11 +18,18 @@ extern crate alloc;
 
 mod interpreter;
 
-// JIT is only available for cloud profile on x86_64
+// JIT is only available for cloud profile
 #[cfg(all(feature = "cloud-profile", target_arch = "x86_64"))]
 pub mod jit;
 
+// ARM64 JIT is available for both profiles (primary target for robotics)
+#[cfg(target_arch = "aarch64")]
+pub mod jit_aarch64;
+
 pub use interpreter::Interpreter;
+
+#[cfg(target_arch = "aarch64")]
+pub use jit_aarch64::{Arm64JitCompiler, Arm64JitExecutor};
 
 use crate::bytecode::program::BpfProgram;
 use crate::profile::{ActiveProfile, PhysicalProfile};
