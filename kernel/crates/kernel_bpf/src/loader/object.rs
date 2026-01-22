@@ -166,8 +166,9 @@ impl<P: PhysicalProfile> BpfObject<P> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloc::vec;
+
+    use super::*;
 
     #[test]
     fn loaded_program_basics() {

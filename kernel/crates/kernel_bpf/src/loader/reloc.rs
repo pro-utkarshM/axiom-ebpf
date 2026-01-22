@@ -220,7 +220,10 @@ mod tests {
     fn helper_name_mapping() {
         assert_eq!(Relocator::helper_name_to_id("bpf_map_lookup_elem"), Some(1));
         assert_eq!(Relocator::helper_name_to_id("bpf_ktime_get_ns"), Some(5));
-        assert_eq!(Relocator::helper_name_to_id("bpf_ringbuf_output"), Some(130));
+        assert_eq!(
+            Relocator::helper_name_to_id("bpf_ringbuf_output"),
+            Some(130)
+        );
         assert_eq!(
             Relocator::helper_name_to_id("bpf_motor_emergency_stop"),
             Some(200)

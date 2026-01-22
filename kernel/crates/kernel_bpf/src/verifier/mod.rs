@@ -42,8 +42,8 @@ mod state;
 mod streaming;
 
 pub use core::Verifier;
-pub use streaming::StreamingVerifier;
 
 pub use cfg::ControlFlowGraph;
 pub use error::VerifyError;
 pub use state::{RegState, RegType, StackSlot, VerifierState};
+pub use streaming::StreamingVerifier;

@@ -61,7 +61,7 @@ pub enum IioChannel {
 
 impl IioChannel {
     /// Parse channel from string.
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "in_accel_x" | "accel_x" => Self::AccelX,
             "in_accel_y" | "accel_y" => Self::AccelY,
@@ -138,12 +138,11 @@ impl<P: PhysicalProfile> IioAttach<P> {
     pub fn new(device: &str, channel: &str) -> AttachResult<Self> {
         if device.is_empty() || channel.is_empty() {
             return Err(AttachError::InvalidTarget(alloc::format!(
-                "{}:{}",
-                device, channel
+                "{}:{}", device, channel
             )));
         }
 
-        let channel_type = IioChannel::from_str(channel);
+        let channel_type = IioChannel::parse(channel);
 
         Ok(Self {
             device: device.into(),
@@ -225,10 +224,10 @@ mod tests {
 
     #[test]
     fn iio_channel_parsing() {
-        assert_eq!(IioChannel::from_str("in_accel_x"), IioChannel::AccelX);
-        assert_eq!(IioChannel::from_str("in_anglvel_z"), IioChannel::AnglVelZ);
-        assert_eq!(IioChannel::from_str("in_voltage0"), IioChannel::Voltage(0));
-        assert_eq!(IioChannel::from_str("in_voltage3"), IioChannel::Voltage(3));
+        assert_eq!(IioChannel::parse("in_accel_x"), IioChannel::AccelX);
+        assert_eq!(IioChannel::parse("in_anglvel_z"), IioChannel::AnglVelZ);
+        assert_eq!(IioChannel::parse("in_voltage0"), IioChannel::Voltage(0));
+        assert_eq!(IioChannel::parse("in_voltage3"), IioChannel::Voltage(3));
     }
 
     #[test]

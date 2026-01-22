@@ -39,16 +39,16 @@ mod kprobe;
 mod pwm;
 mod tracepoint;
 
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+
 pub use gpio::{GpioAttach, GpioEdge, GpioEvent};
 pub use iio::{IioAttach, IioChannel, IioEvent};
 pub use kprobe::{KprobeAttach, KprobeType};
 pub use pwm::{PwmAttach, PwmEvent};
 pub use tracepoint::TracepointAttach;
-
-use alloc::boxed::Box;
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::marker::PhantomData;
 
 use crate::bytecode::program::BpfProgram;
 use crate::profile::{ActiveProfile, PhysicalProfile};

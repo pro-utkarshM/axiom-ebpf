@@ -47,13 +47,13 @@ mod error;
 mod object;
 mod reloc;
 
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+
 pub use elf::{ElfParser, SectionType};
 pub use error::{LoadError, LoadResult};
 pub use object::{BpfObject, LoadedMap, LoadedProgram};
 pub use reloc::Relocator;
-
-use alloc::vec::Vec;
-use core::marker::PhantomData;
 
 use crate::bytecode::insn::BpfInsn;
 use crate::bytecode::program::BpfProgType;
@@ -172,9 +172,9 @@ impl<P: PhysicalProfile> BpfLoader<P> {
                 return Err(LoadError::TooManyPrograms);
             }
 
-            let name = parser.section_name(&section)?;
+            let name = parser.section_name(section)?;
             let prog_type = Self::section_to_prog_type(&name);
-            let data = parser.section_data(&section)?;
+            let data = parser.section_data(section)?;
 
             // Parse instructions
             let insns = Self::parse_instructions(data)?;
@@ -194,12 +194,19 @@ impl<P: PhysicalProfile> BpfLoader<P> {
         // Handle common section name prefixes
         if name.starts_with("socket") || name.starts_with("sk_") {
             BpfProgType::SocketFilter
-        } else if name.starts_with("kprobe") || name.starts_with("kretprobe") {
+        } else if name.starts_with("kprobe")
+            || name.starts_with("kretprobe")
+            || name.starts_with("fentry")
+            || name.starts_with("fexit")
+        {
             BpfProgType::Kprobe
-        } else if name.starts_with("tracepoint") || name.starts_with("tp/") {
+        } else if name.starts_with("tracepoint")
+            || name.starts_with("tp/")
+            || name.starts_with("raw_tracepoint")
+            || name.starts_with("raw_tp/")
+            || name.starts_with("iter/")
+        {
             BpfProgType::Tracepoint
-        } else if name.starts_with("raw_tracepoint") || name.starts_with("raw_tp/") {
-            BpfProgType::Tracepoint // Map raw tracepoints to tracepoint
         } else if name.starts_with("xdp") {
             BpfProgType::Xdp
         } else if name.starts_with("perf_event") {
@@ -210,25 +217,15 @@ impl<P: PhysicalProfile> BpfLoader<P> {
             BpfProgType::SchedCls
         } else if name.starts_with("lwt_") {
             BpfProgType::LwtIn
-        } else if name.starts_with("fentry") {
-            BpfProgType::Kprobe // Map fentry to kprobe
-        } else if name.starts_with("fexit") {
-            BpfProgType::Kprobe // Map fexit to kprobe
-        } else if name.starts_with("iter/") {
-            BpfProgType::Tracepoint // Map iter to tracepoint
-        } else if name.starts_with("struct_ops") {
-            BpfProgType::SocketFilter // Map struct_ops to socket filter
-        } else if name.starts_with("lsm/") {
-            BpfProgType::SocketFilter // Map lsm to socket filter
         } else {
-            // Default to socket filter for unknown types
+            // Default to socket filter for unknown types (including struct_ops, lsm)
             BpfProgType::SocketFilter
         }
     }
 
     /// Parse instructions from raw bytes.
     fn parse_instructions(data: &[u8]) -> LoadResult<Vec<BpfInsn>> {
-        if data.len() % INSN_SIZE != 0 {
+        if !data.len().is_multiple_of(INSN_SIZE) {
             return Err(LoadError::InvalidInstructionData);
         }
 

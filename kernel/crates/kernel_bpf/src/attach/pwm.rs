@@ -176,8 +176,8 @@ mod tests {
             timestamp: 0,
             chip_id: 0,
             channel: 0,
-            period_ns: 1_000_000,  // 1ms = 1kHz
-            duty_ns: 500_000,      // 50% duty
+            period_ns: 1_000_000, // 1ms = 1kHz
+            duty_ns: 500_000,     // 50% duty
             polarity: 0,
             enabled: 1,
         };

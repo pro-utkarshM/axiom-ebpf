@@ -27,7 +27,6 @@ pub mod jit;
 pub mod jit_aarch64;
 
 pub use interpreter::Interpreter;
-
 #[cfg(target_arch = "aarch64")]
 pub use jit_aarch64::{Arm64JitCompiler, Arm64JitExecutor};
 

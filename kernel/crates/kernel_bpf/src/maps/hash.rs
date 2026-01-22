@@ -78,6 +78,7 @@ impl Bucket {
         self.state == BucketState::Empty
     }
 
+    #[allow(dead_code)]
     fn is_occupied(&self) -> bool {
         self.state == BucketState::Occupied
     }
@@ -86,6 +87,7 @@ impl Bucket {
         self.state == BucketState::Deleted
     }
 
+    #[allow(dead_code)]
     fn is_available(&self) -> bool {
         self.state != BucketState::Occupied
     }
@@ -533,7 +535,8 @@ mod tests {
         // Should be able to insert a new entry
         let new_key = 100u32.to_ne_bytes();
         let new_value = 100u32.to_ne_bytes();
-        map.update(&new_key, &new_value, 0).expect("insert into deleted slot");
+        map.update(&new_key, &new_value, 0)
+            .expect("insert into deleted slot");
     }
 
     #[test]

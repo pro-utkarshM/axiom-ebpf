@@ -31,8 +31,7 @@ impl<P: PhysicalProfile> TracepointAttach<P> {
     pub fn new(category: &str, name: &str) -> AttachResult<Self> {
         if category.is_empty() || name.is_empty() {
             return Err(AttachError::InvalidTarget(alloc::format!(
-                "{}:{}",
-                category, name
+                "{}:{}", category, name
             )));
         }
 
@@ -98,8 +97,7 @@ mod tests {
 
     #[test]
     fn create_tracepoint() {
-        let tp =
-            TracepointAttach::<ActiveProfile>::new("syscalls", "sys_enter_write").unwrap();
+        let tp = TracepointAttach::<ActiveProfile>::new("syscalls", "sys_enter_write").unwrap();
         assert_eq!(tp.category(), "syscalls");
         assert_eq!(tp.name(), "sys_enter_write");
     }

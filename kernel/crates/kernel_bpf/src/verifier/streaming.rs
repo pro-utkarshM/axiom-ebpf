@@ -240,10 +240,10 @@ impl<P: PhysicalProfile> StreamingVerifier<P> {
             if let Some(jmp_op) = insn.jmp_op() {
                 let target = Self::compute_jump_target(idx, insn.offset);
 
-                if let Some(target) = target.filter(|&t| t < self.insns.len()) {
-                    if !self.block_leaders.contains(&target) {
-                        self.block_leaders.push(target);
-                    }
+                if let Some(target) = target.filter(|&t| t < self.insns.len())
+                    && !self.block_leaders.contains(&target)
+                {
+                    self.block_leaders.push(target);
                 }
 
                 if jmp_op.is_conditional() && idx + 1 < self.insns.len() {
@@ -288,10 +288,7 @@ impl<P: PhysicalProfile> StreamingVerifier<P> {
 
     /// Verify a single basic block starting at the given index.
     fn verify_block(&mut self, start_idx: usize) -> VerifyResult<()> {
-        let mut state = self
-            .current_state
-            .take()
-            .ok_or(VerifyError::EmptyProgram)?;
+        let mut state = self.current_state.take().ok_or(VerifyError::EmptyProgram)?;
         state.insn_idx = start_idx;
 
         // Check if we've already processed this block with compatible state
@@ -410,10 +407,10 @@ impl<P: PhysicalProfile> StreamingVerifier<P> {
     /// Add a block to the worklist for later processing.
     fn add_to_worklist(&mut self, idx: usize, state: VerifierState) -> VerifyResult<()> {
         // Check if we already have a merge point with compatible state
-        if let Some(merged) = self.find_merge_point(idx) {
-            if self.states_compatible(&state, &merged.state) {
-                return Ok(()); // Already covered
-            }
+        if let Some(merged) = self.find_merge_point(idx)
+            && self.states_compatible(&state, &merged.state)
+        {
+            return Ok(()); // Already covered
         }
 
         // Check worklist depth limit
@@ -442,14 +439,14 @@ impl<P: PhysicalProfile> StreamingVerifier<P> {
         state: &VerifierState,
     ) -> VerifyResult<()> {
         // Track loop iteration count
-        let count = if let Some((_, count)) = self.loop_counts.iter_mut().find(|(t, _)| *t == to_idx)
-        {
-            *count += 1;
-            *count
-        } else {
-            self.loop_counts.push((to_idx, 1));
-            1
-        };
+        let count =
+            if let Some((_, count)) = self.loop_counts.iter_mut().find(|(t, _)| *t == to_idx) {
+                *count += 1;
+                *count
+            } else {
+                self.loop_counts.push((to_idx, 1));
+                1
+            };
 
         // Check iteration limit
         if count > MAX_LOOP_ITERATIONS {
@@ -592,10 +589,7 @@ impl<P: PhysicalProfile> StreamingVerifier<P> {
         })?;
 
         // Check source register if register mode
-        if matches!(
-            insn.source_type(),
-            crate::bytecode::opcode::SourceType::Reg
-        ) {
+        if matches!(insn.source_type(), crate::bytecode::opcode::SourceType::Reg) {
             let src = insn.src().ok_or(VerifyError::InvalidRegister {
                 insn_idx: idx,
                 reg: insn.src_reg(),
@@ -678,10 +672,7 @@ impl<P: PhysicalProfile> StreamingVerifier<P> {
             });
         }
 
-        if matches!(
-            insn.source_type(),
-            crate::bytecode::opcode::SourceType::Reg
-        ) {
+        if matches!(insn.source_type(), crate::bytecode::opcode::SourceType::Reg) {
             let src = insn.src().ok_or(VerifyError::InvalidRegister {
                 insn_idx: idx,
                 reg: insn.src_reg(),

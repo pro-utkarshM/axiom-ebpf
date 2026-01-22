@@ -395,10 +395,10 @@ impl<'a> ElfParser<'a> {
     /// Find a section by name.
     pub fn find_section(&self, name: &str) -> LoadResult<Option<SectionHeader>> {
         for section in &self.sections {
-            if let Ok(section_name) = self.section_name(section) {
-                if section_name == name {
-                    return Ok(Some(section.clone()));
-                }
+            if let Ok(section_name) = self.section_name(section)
+                && section_name == name
+            {
+                return Ok(Some(section.clone()));
             }
         }
         Ok(None)
@@ -428,26 +428,31 @@ impl<'a> ElfParser<'a> {
                 continue;
             }
 
-            if let Ok(name) = self.section_name(section) {
-                if name == rel_name || section.info as usize == section_idx {
-                    // Parse relocations
-                    let data = self.section_data(section)?;
-                    const REL_SIZE: usize = 16; // Elf64_Rel size
+            if let Ok(name) = self.section_name(section)
+                && (name == rel_name || section.info as usize == section_idx)
+            {
+                // Parse relocations
+                let data = self.section_data(section)?;
+                const REL_SIZE: usize = 16; // Elf64_Rel size
 
-                    for i in (0..data.len()).step_by(REL_SIZE) {
-                        if i + REL_SIZE > data.len() {
-                            break;
-                        }
-
-                        let r_offset = Self::read_u64(self.data, section.offset as usize + i, self.little_endian);
-                        let r_info = Self::read_u64(self.data, section.offset as usize + i + 8, self.little_endian);
-
-                        relocs.push(Relocation {
-                            offset: r_offset,
-                            sym_idx: (r_info >> 32) as u32,
-                            rel_type: (r_info & 0xffffffff) as u32,
-                        });
+                for i in (0..data.len()).step_by(REL_SIZE) {
+                    if i + REL_SIZE > data.len() {
+                        break;
                     }
+
+                    let r_offset =
+                        Self::read_u64(self.data, section.offset as usize + i, self.little_endian);
+                    let r_info = Self::read_u64(
+                        self.data,
+                        section.offset as usize + i + 8,
+                        self.little_endian,
+                    );
+
+                    relocs.push(Relocation {
+                        offset: r_offset,
+                        sym_idx: (r_info >> 32) as u32,
+                        rel_type: (r_info & 0xffffffff) as u32,
+                    });
                 }
             }
         }
@@ -485,8 +490,9 @@ impl<'a> ElfParser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloc::vec;
+
+    use super::*;
 
     // Minimal valid BPF ELF header for testing
     fn minimal_bpf_elf() -> Vec<u8> {

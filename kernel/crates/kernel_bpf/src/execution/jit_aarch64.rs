@@ -65,7 +65,7 @@ const X22: u8 = 22;
 const X25: u8 = 25;
 const X29: u8 = 29; // Frame pointer
 const X30: u8 = 30; // Link register
-const SP: u8 = 31;  // Stack pointer (when used as base)
+const SP: u8 = 31; // Stack pointer (when used as base)
 
 /// BPF to ARM64 register mapping.
 const BPF_TO_ARM64: [u8; 11] = [
@@ -128,9 +128,7 @@ impl Arm64Emitter {
     /// MOV (register): Rd = Rm
     fn emit_mov_reg(&mut self, rd: u8, rm: u8) {
         // ORR Xd, XZR, Xm
-        let insn = 0xAA000000
-            | ((rm as u32) << 16)
-            | ((rd as u32) & 0x1f);
+        let insn = 0xAA000000 | ((rm as u32) << 16) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
@@ -138,20 +136,14 @@ impl Arm64Emitter {
     fn emit_mov_imm(&mut self, rd: u8, imm: u16, shift: u8) {
         // MOVZ Xd, #imm, LSL #shift
         let hw = (shift / 16) as u32;
-        let insn = 0xD2800000
-            | (hw << 21)
-            | ((imm as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0xD2800000 | (hw << 21) | ((imm as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// MOVK (keep other bits): Rd |= (imm16 << shift)
     fn emit_movk(&mut self, rd: u8, imm: u16, shift: u8) {
         let hw = (shift / 16) as u32;
-        let insn = 0xF2800000
-            | (hw << 21)
-            | ((imm as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0xF2800000 | (hw << 21) | ((imm as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
@@ -195,122 +187,85 @@ impl Arm64Emitter {
 
     /// ADD (register): Rd = Rn + Rm
     fn emit_add_reg(&mut self, rd: u8, rn: u8, rm: u8) {
-        let insn = 0x8B000000
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x8B000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// ADD (immediate): Rd = Rn + imm12
     fn emit_add_imm(&mut self, rd: u8, rn: u8, imm: u16) {
-        let insn = 0x91000000
-            | (((imm as u32) & 0xFFF) << 10)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn =
+            0x91000000 | (((imm as u32) & 0xFFF) << 10) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// SUB (register): Rd = Rn - Rm
     fn emit_sub_reg(&mut self, rd: u8, rn: u8, rm: u8) {
-        let insn = 0xCB000000
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0xCB000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// SUB (immediate): Rd = Rn - imm12
     fn emit_sub_imm(&mut self, rd: u8, rn: u8, imm: u16) {
-        let insn = 0xD1000000
-            | (((imm as u32) & 0xFFF) << 10)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn =
+            0xD1000000 | (((imm as u32) & 0xFFF) << 10) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// MUL: Rd = Rn * Rm
     fn emit_mul(&mut self, rd: u8, rn: u8, rm: u8) {
         // MADD Xd, Xn, Xm, XZR (multiply-add with zero)
-        let insn = 0x9B007C00
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x9B007C00 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// UDIV: Rd = Rn / Rm (unsigned)
     fn emit_udiv(&mut self, rd: u8, rn: u8, rm: u8) {
-        let insn = 0x9AC00800
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x9AC00800 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// SDIV: Rd = Rn / Rm (signed)
     fn emit_sdiv(&mut self, rd: u8, rn: u8, rm: u8) {
-        let insn = 0x9AC00C00
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x9AC00C00 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// AND (register): Rd = Rn & Rm
     fn emit_and_reg(&mut self, rd: u8, rn: u8, rm: u8) {
-        let insn = 0x8A000000
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x8A000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// ORR (register): Rd = Rn | Rm
     fn emit_orr_reg(&mut self, rd: u8, rn: u8, rm: u8) {
-        let insn = 0xAA000000
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0xAA000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// EOR (register): Rd = Rn ^ Rm
     fn emit_eor_reg(&mut self, rd: u8, rn: u8, rm: u8) {
-        let insn = 0xCA000000
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0xCA000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// LSL (register): Rd = Rn << Rm
     fn emit_lsl_reg(&mut self, rd: u8, rn: u8, rm: u8) {
         // LSLV Xd, Xn, Xm
-        let insn = 0x9AC02000
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x9AC02000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// LSR (register): Rd = Rn >> Rm (unsigned)
     fn emit_lsr_reg(&mut self, rd: u8, rn: u8, rm: u8) {
         // LSRV Xd, Xn, Xm
-        let insn = 0x9AC02400
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x9AC02400 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
     /// ASR (register): Rd = Rn >> Rm (signed)
     fn emit_asr_reg(&mut self, rd: u8, rn: u8, rm: u8) {
         // ASRV Xd, Xn, Xm
-        let insn = 0x9AC02800
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5)
-            | ((rd as u32) & 0x1f);
+        let insn = 0x9AC02800 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
@@ -333,11 +288,8 @@ impl Arm64Emitter {
         if offset < 0 {
             // LDUR (unscaled immediate)
             let imm9 = (offset as u32) & 0x1FF;
-            let insn = (opc << 30)
-                | 0x38400000
-                | (imm9 << 12)
-                | ((rn as u32) << 5)
-                | ((rt as u32) & 0x1f);
+            let insn =
+                (opc << 30) | 0x38400000 | (imm9 << 12) | ((rn as u32) << 5) | ((rt as u32) & 0x1f);
             self.emit(insn);
         } else {
             // LDR (unsigned offset)
@@ -363,11 +315,8 @@ impl Arm64Emitter {
         if offset < 0 {
             // STUR (unscaled immediate)
             let imm9 = (offset as u32) & 0x1FF;
-            let insn = (opc << 30)
-                | 0x38000000
-                | (imm9 << 12)
-                | ((rn as u32) << 5)
-                | ((rt as u32) & 0x1f);
+            let insn =
+                (opc << 30) | 0x38000000 | (imm9 << 12) | ((rn as u32) << 5) | ((rt as u32) & 0x1f);
             self.emit(insn);
         } else {
             // STR (unsigned offset)
@@ -384,18 +333,14 @@ impl Arm64Emitter {
     /// CMP (register): flags = Rn - Rm
     fn emit_cmp_reg(&mut self, rn: u8, rm: u8) {
         // SUBS XZR, Xn, Xm
-        let insn = 0xEB00001F
-            | ((rm as u32) << 16)
-            | ((rn as u32) << 5);
+        let insn = 0xEB00001F | ((rm as u32) << 16) | ((rn as u32) << 5);
         self.emit(insn);
     }
 
     /// CMP (immediate): flags = Rn - imm12
     fn emit_cmp_imm(&mut self, rn: u8, imm: u16) {
         // SUBS XZR, Xn, #imm
-        let insn = 0xF100001F
-            | (((imm as u32) & 0xFFF) << 10)
-            | ((rn as u32) << 5);
+        let insn = 0xF100001F | (((imm as u32) & 0xFFF) << 10) | ((rn as u32) << 5);
         self.emit(insn);
     }
 
@@ -604,9 +549,15 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
                     AluOp::Mov => {
                         emitter.emit_mov64_imm(dst, insn.imm as i64);
                     }
-                    AluOp::Mul | AluOp::Div | AluOp::Mod |
-                    AluOp::And | AluOp::Or | AluOp::Xor |
-                    AluOp::Lsh | AluOp::Rsh | AluOp::Arsh => {
+                    AluOp::Mul
+                    | AluOp::Div
+                    | AluOp::Mod
+                    | AluOp::And
+                    | AluOp::Or
+                    | AluOp::Xor
+                    | AluOp::Lsh
+                    | AluOp::Rsh
+                    | AluOp::Arsh => {
                         // Load immediate to temp, then do reg op
                         emitter.emit_mov64_imm(X7, insn.imm as i64);
                         self.emit_alu_reg(emitter, alu_op, dst, X7)?;
@@ -654,8 +605,8 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
             AluOp::Div => emitter.emit_udiv(dst, dst, src),
             AluOp::Mod => {
                 // ARM64 doesn't have MOD, compute: dst = dst - (dst/src)*src
-                emitter.emit_udiv(X7, dst, src);  // X7 = dst / src
-                emitter.emit_mul(X7, X7, src);    // X7 = X7 * src
+                emitter.emit_udiv(X7, dst, src); // X7 = dst / src
+                emitter.emit_mul(X7, X7, src); // X7 = X7 * src
                 emitter.emit_sub_reg(dst, dst, X7); // dst = dst - X7
             }
             AluOp::And => emitter.emit_and_reg(dst, dst, src),
@@ -708,12 +659,12 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
 
             // Emit conditional branch
             let cond = match jmp_op {
-                JmpOp::Jeq => 0, // EQ
-                JmpOp::Jne => 1, // NE
-                JmpOp::Jgt => 8, // HI (unsigned greater)
-                JmpOp::Jge => 2, // HS/CS (unsigned greater or equal)
-                JmpOp::Jlt => 3, // LO/CC (unsigned less)
-                JmpOp::Jle => 9, // LS (unsigned less or equal)
+                JmpOp::Jeq => 0,   // EQ
+                JmpOp::Jne => 1,   // NE
+                JmpOp::Jgt => 8,   // HI (unsigned greater)
+                JmpOp::Jge => 2,   // HS/CS (unsigned greater or equal)
+                JmpOp::Jlt => 3,   // LO/CC (unsigned less)
+                JmpOp::Jle => 9,   // LS (unsigned less or equal)
                 JmpOp::Jsgt => 12, // GT (signed greater)
                 JmpOp::Jsge => 10, // GE (signed greater or equal)
                 JmpOp::Jslt => 11, // LT (signed less)
@@ -737,7 +688,9 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
     fn compile_ldx(&self, emitter: &mut Arm64Emitter, insn: &BpfInsn) -> Result<(), Arm64JitError> {
         let dst = BPF_TO_ARM64[insn.dst_reg() as usize];
         let src = BPF_TO_ARM64[insn.src_reg() as usize];
-        let size = insn.mem_size().ok_or(Arm64JitError::UnsupportedInstruction)?;
+        let size = insn
+            .mem_size()
+            .ok_or(Arm64JitError::UnsupportedInstruction)?;
 
         emitter.emit_ldr(dst, src, insn.offset, size);
 
@@ -747,7 +700,9 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
     /// Compile store instruction (STX, ST).
     fn compile_st(&self, emitter: &mut Arm64Emitter, insn: &BpfInsn) -> Result<(), Arm64JitError> {
         let dst = BPF_TO_ARM64[insn.dst_reg() as usize];
-        let size = insn.mem_size().ok_or(Arm64JitError::UnsupportedInstruction)?;
+        let size = insn
+            .mem_size()
+            .ok_or(Arm64JitError::UnsupportedInstruction)?;
 
         match insn.class() {
             Some(OpcodeClass::Stx) => {
@@ -805,8 +760,7 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
                 (insn & 0xFF00001F) | (imm19 << 5)
             };
 
-            emitter.code[*code_offset..*code_offset + 4]
-                .copy_from_slice(&patched.to_le_bytes());
+            emitter.code[*code_offset..*code_offset + 4].copy_from_slice(&patched.to_le_bytes());
         }
 
         Ok(())
@@ -873,7 +827,11 @@ mod tests {
     fn test_register_mapping() {
         // Verify register mapping is valid
         for (bpf_reg, arm_reg) in BPF_TO_ARM64.iter().enumerate() {
-            assert!(*arm_reg <= 31, "Invalid ARM64 register for BPF R{}", bpf_reg);
+            assert!(
+                *arm_reg <= 31,
+                "Invalid ARM64 register for BPF R{}",
+                bpf_reg
+            );
         }
     }
 

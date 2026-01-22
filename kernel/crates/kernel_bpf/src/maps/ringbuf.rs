@@ -84,7 +84,7 @@ impl EventHeader {
         Self { length, flags: 0 }
     }
 
-    fn to_bytes(&self) -> [u8; 8] {
+    fn as_bytes(self) -> [u8; 8] {
         let mut bytes = [0u8; 8];
         bytes[0..4].copy_from_slice(&self.length.to_ne_bytes());
         bytes[4..8].copy_from_slice(&self.flags.to_ne_bytes());
@@ -272,7 +272,10 @@ impl<P: PhysicalProfile> RingBufMap<P> {
         }
 
         // Allocate space
-        let head = self.control.head.fetch_add(aligned_size as u64, Ordering::AcqRel);
+        let head = self
+            .control
+            .head
+            .fetch_add(aligned_size as u64, Ordering::AcqRel);
         let offset = self.control.wrap(head);
 
         Some(RingBufReservation {
@@ -294,7 +297,7 @@ impl<P: PhysicalProfile> RingBufMap<P> {
 
         // Write header
         let header = EventHeader::new(data.len() as u32);
-        let header_bytes = header.to_bytes();
+        let header_bytes = header.as_bytes();
         self.write_wrapped(&mut buffer, reservation.offset, &header_bytes);
 
         // Write data
@@ -417,6 +420,7 @@ pub struct RingBufReservation {
     /// Size of data (not including header)
     data_size: usize,
     /// Total size including header and alignment
+    #[allow(dead_code)]
     total_size: usize,
 }
 
