@@ -182,10 +182,11 @@ impl TimeSeriesStorage {
         let mut result = Vec::new();
 
         for i in 0..self.count {
-            if let Some((ts, value)) = self.get(i) {
-                if ts >= start_ns && ts <= end_ns {
-                    result.push((ts, value.to_vec()));
-                }
+            if let Some((ts, value)) = self.get(i)
+                && ts >= start_ns
+                && ts <= end_ns
+            {
+                result.push((ts, value.to_vec()));
             }
         }
 

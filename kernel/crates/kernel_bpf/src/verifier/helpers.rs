@@ -396,9 +396,11 @@ pub fn get_helper_signature(id: HelperId) -> HelperSignature {
 
         HelperId::GetCurrentUidGid => HelperSignature::new(id, &[], ReturnType::Integer),
 
-        HelperId::GetCurrentComm => {
-            HelperSignature::new(id, &[ArgType::PtrToStack, ArgType::MemSize], ReturnType::Integer)
-        }
+        HelperId::GetCurrentComm => HelperSignature::new(
+            id,
+            &[ArgType::PtrToStack, ArgType::MemSize],
+            ReturnType::Integer,
+        ),
 
         // Ring buffer helpers
         HelperId::RingbufReserve => HelperSignature::new(
@@ -407,13 +409,17 @@ pub fn get_helper_signature(id: HelperId) -> HelperSignature {
             ReturnType::PtrToAllocMemOrNull,
         ),
 
-        HelperId::RingbufSubmit => {
-            HelperSignature::new(id, &[ArgType::PtrToRingbufSample, ArgType::Const], ReturnType::Void)
-        }
+        HelperId::RingbufSubmit => HelperSignature::new(
+            id,
+            &[ArgType::PtrToRingbufSample, ArgType::Const],
+            ReturnType::Void,
+        ),
 
-        HelperId::RingbufDiscard => {
-            HelperSignature::new(id, &[ArgType::PtrToRingbufSample, ArgType::Const], ReturnType::Void)
-        }
+        HelperId::RingbufDiscard => HelperSignature::new(
+            id,
+            &[ArgType::PtrToRingbufSample, ArgType::Const],
+            ReturnType::Void,
+        ),
 
         HelperId::RingbufOutput => HelperSignature::new(
             id,
@@ -585,10 +591,7 @@ mod tests {
         let result = validate_helper_call(5, &args);
         assert!(matches!(
             result,
-            HelperValidation::ArgTypeMismatch {
-                arg_idx: 0,
-                ..
-            }
+            HelperValidation::ArgTypeMismatch { arg_idx: 0, .. }
         ));
     }
 

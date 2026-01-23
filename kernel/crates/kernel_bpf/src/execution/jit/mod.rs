@@ -58,7 +58,7 @@ use core::marker::PhantomData;
 use crate::bytecode::insn::BpfInsn;
 use crate::bytecode::opcode::{AluOp, JmpOp, MemSize, OpcodeClass, SourceType};
 use crate::bytecode::program::BpfProgram;
-use crate::execution::{BpfContext, BpfError, BpfExecutor, BpfResult};
+use crate::execution::{BpfContext, BpfExecutor, BpfResult};
 use crate::profile::CloudProfile;
 
 // x86_64 register encodings (REX.W mode, 64-bit)
@@ -257,6 +257,7 @@ impl X64Emitter {
     }
 
     /// IDIV reg (signed)
+    #[allow(dead_code)]
     fn emit_idiv_reg(&mut self, src: u8) {
         // REX.W + F7 /7
         self.emit_byte(Self::rex(true, 0, 0, src));
@@ -406,6 +407,7 @@ impl X64Emitter {
     }
 
     /// CALL rel32
+    #[allow(dead_code)]
     fn emit_call_rel32(&mut self, offset: i32) {
         // E8 cd
         self.emit_byte(0xE8);
@@ -502,7 +504,7 @@ impl X64Emitter {
             if disp == 0 && base_enc != RBP {
                 self.emit_byte(Self::modrm(0b00, reg_enc, 0b100));
                 self.emit_byte(0x24); // SIB: no index, RSP base
-            } else if disp >= -128 && disp <= 127 {
+            } else if (-128..=127).contains(&disp) {
                 self.emit_byte(Self::modrm(0b01, reg_enc, 0b100));
                 self.emit_byte(0x24);
                 self.emit_byte(disp as i8 as u8);
@@ -513,7 +515,7 @@ impl X64Emitter {
             }
         } else if disp == 0 && base_enc != RBP {
             self.emit_byte(Self::modrm(0b00, reg_enc, base_enc));
-        } else if disp >= -128 && disp <= 127 {
+        } else if (-128..=127).contains(&disp) {
             self.emit_byte(Self::modrm(0b01, reg_enc, base_enc));
             self.emit_byte(disp as i8 as u8);
         } else {
@@ -523,6 +525,7 @@ impl X64Emitter {
     }
 
     /// CQO - sign extend RAX to RDX:RAX
+    #[allow(dead_code)]
     fn emit_cqo(&mut self) {
         // REX.W + 99
         self.emit_bytes(&[0x48, 0x99]);
@@ -535,6 +538,7 @@ impl X64Emitter {
 }
 
 /// x86_64 condition codes.
+#[allow(dead_code)]
 mod cc {
     pub const JO: u8 = 0x0; // Overflow
     pub const JNO: u8 = 0x1; // Not overflow
@@ -553,6 +557,7 @@ mod cc {
 }
 
 /// JIT-compiled BPF program.
+#[allow(dead_code)]
 pub struct JitProgram {
     /// Executable code (would be mmap'd with PROT_EXEC in real impl)
     code: Vec<u8>,
@@ -898,7 +903,7 @@ impl Arm64JitCompiler {
     }
 
     /// Compile jump instruction.
-    fn compile_jmp(&mut self, insn: &BpfInsn, is_64bit: bool) -> Result<(), JitError> {
+    fn compile_jmp(&mut self, insn: &BpfInsn, _is_64bit: bool) -> Result<(), JitError> {
         let Some(op) = JmpOp::from_opcode(insn.opcode) else {
             return Err(JitError::UnsupportedInstruction);
         };

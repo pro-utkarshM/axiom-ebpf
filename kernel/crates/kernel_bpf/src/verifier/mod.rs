@@ -46,6 +46,6 @@ pub use core::Verifier;
 
 pub use cfg::ControlFlowGraph;
 pub use error::VerifyError;
-pub use helpers::{get_helper_signature, validate_helper_call, ArgType, HelperId, HelperSignature};
+pub use helpers::{ArgType, HelperId, HelperSignature, get_helper_signature, validate_helper_call};
 pub use state::{RegState, RegType, StackSlot, VerifierState};
 pub use streaming::StreamingVerifier;

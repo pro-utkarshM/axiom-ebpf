@@ -11,7 +11,7 @@ use core::marker::PhantomData;
 
 use super::cfg::ControlFlowGraph;
 use super::error::{VerifyError, VerifyResult};
-use super::helpers::{validate_helper_call, HelperValidation};
+use super::helpers::{HelperValidation, validate_helper_call};
 use super::state::{RegState, RegType, ScalarValue, StackSlot, VerifierState};
 use crate::bytecode::insn::BpfInsn;
 use crate::bytecode::opcode::{AluOp, OpcodeClass};
