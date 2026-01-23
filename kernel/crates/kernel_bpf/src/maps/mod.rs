@@ -23,6 +23,7 @@ extern crate alloc;
 mod array;
 mod hash;
 mod ringbuf;
+mod timeseries;
 
 #[cfg(feature = "embedded-profile")]
 mod static_pool;
@@ -35,6 +36,7 @@ pub use ringbuf::{RingBufMap, RingBufReservation};
 use spin::RwLock;
 #[cfg(feature = "embedded-profile")]
 pub use static_pool::StaticPool;
+pub use timeseries::{TimeSeriesMap, TimeSeriesStats};
 
 use crate::profile::{ActiveProfile, PhysicalProfile};
 
@@ -71,6 +73,8 @@ pub enum MapType {
     LpmTrie = 11,
     /// Ring buffer
     RingBuf = 27,
+    /// Time-series map (rkBPF extension for robotics)
+    TimeSeries = 100,
 }
 
 /// Map definition structure.
