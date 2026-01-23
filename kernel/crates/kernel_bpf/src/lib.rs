@@ -106,4 +106,5 @@ pub mod loader;
 pub mod maps;
 pub mod profile;
 pub mod scheduler;
+pub mod signing;
 pub mod verifier;
