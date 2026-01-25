@@ -1,222 +1,113 @@
-# axiom-ebpf
+# Axiom
 
-**A multi-architecture, bare-metal operating system kernel in Rust, exploring eBPF as a first-class kernel execution model.**
-
----
-
-## Overview
-
-`axiom-ebpf` is a research-oriented operating system kernel written in Rust, designed to run **directly on hardware** across multiple architectures (x86_64, AArch64, RISC-V).
-
-The project investigates a central question:
-
-> *What does an operating system look like if safe, verified programs (eBPF) are treated as a core kernel abstraction rather than a bolt-on feature?*
-
-Unlike Linux-based eBPF work, `axiom-ebpf` is **not built on top of an existing kernel**. Instead, it explores eBPF integration at the **OS design level**, alongside memory management, filesystems, syscalls, and userspace.
+**A runtime-programmable kernel for embedded systems and robotics.**
 
 ---
 
-## Goals
+## The Problem
 
-* Build a **clean, modular, Rust-based kernel**
-* Support **multiple CPU architectures** from a single codebase
-* Provide a **stable kernel ↔ userspace ABI**
-* Integrate **eBPF as a kernel-native execution mechanism**
-* Move toward **POSIX.1-2024 compatibility**
-* Remain suitable for **research, experimentation, and formal reasoning**
+Every robot runs Linux. Every team freezes their kernel because one bad change bricks the device.
 
-This is **not** a production OS. Correctness, clarity, and extensibility are prioritized over feature completeness.
+```
+Want better scheduling?     → Rebuild, reflash, pray.
+Need to debug production?   → Guesswork.
+Fix a driver bug?           → Cross-compile, create image, flash, hope.
+```
+
+**Axiom** is a kernel where behavior is defined by verified programs that can be loaded, updated, and replaced at runtime—without reflashing.
 
 ---
 
-## Key Features
+## What Is This?
 
-### Kernel Architecture
+Axiom is a **bare-metal operating system kernel** written in Rust, designed from the ground up with runtime programmability as a first-class primitive.
 
-* Bare-metal kernel (no host OS)
-* Boots via the **Limine** bootloader
-* Modular subsystem design using Rust crates
-* Architecture-specific code cleanly isolated
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       AXIOM KERNEL                          │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │              BPF Program Layer                        │  │
+│  │                                                       │  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐    │  │
+│  │  │ Drivers │ │ Filters │ │ Safety  │ │ Sched   │    │  │
+│  │  │ (prog)  │ │ (prog)  │ │ (prog)  │ │ (prog)  │    │  │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘    │  │
+│  │                                                       │  │
+│  │  All programs: verified, bounded, safe               │  │
+│  │  Can be loaded/unloaded/updated at runtime           │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │                   Kernel Core                         │  │
+│  │  Memory │ Processes │ VFS │ Syscalls │ BPF Verifier  │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │               Architecture Layer                      │  │
+│  │       x86_64    │    AArch64 (RPi5)    │   RISC-V    │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Memory Management
-
-* Physical memory allocator
-* Virtual memory with paging and address spaces
-* Clear separation between physical and virtual layers
-
-### Process & Execution Model
-
-* Kernel-managed processes and threads
-* Syscall interface designed for POSIX alignment
-* ELF loader for userspace binaries
-
-### Filesystems
-
-* Virtual File System (VFS) abstraction
-* `devfs` support
-* Extensible filesystem interface
-
-### eBPF Integration (Core Research Area)
-
-* Kernel-resident eBPF subsystem
-* Safe, verifier-backed execution model
-* Designed to evolve toward:
-
-  * Runtime kernel instrumentation
-  * Policy enforcement
-  * Observability and safety logic
-
-### Multi-Architecture Support
-
-* x86_64
-* AArch64
-* RISC-V (actively developed)
-* Architecture-neutral core where possible
+**This is not eBPF bolted onto Linux.** This is a kernel designed from day one around safe, verified, runtime-loadable programs.
 
 ---
 
-## Repository Structure
+## Current Status
 
-```
-.
-├── Cargo.toml          # Workspace definition
-├── build.rs            # Workspace build logic
-├── limine.conf         # Bootloader configuration
-├── docs/               # Design and architecture documentation
-├── kernel/             # The operating system kernel
-├── userspace/          # Userspace programs and libraries
-├── scripts/            # Build and deployment helpers
-└── src/main.rs         # Build orchestration entry
-```
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Kernel Core** | ✅ Complete | Boots on real hardware |
+| Physical Memory | ✅ Complete | Sparse frame allocator |
+| Virtual Memory | ✅ Complete | Paging, address spaces |
+| Process/Tasks | ✅ Complete | Scheduling, context switch |
+| VFS | ✅ Complete | Ext2, DevFS |
+| Syscalls | ⚠️ Partial | 8 of 41 implemented |
+| **BPF Subsystem** | ✅ Complete | Full implementation |
+| Streaming Verifier | ✅ Complete | O(n) memory, 50KB peak |
+| Interpreter | ✅ Complete | All instructions |
+| x86_64 JIT | ✅ Complete | Full instruction set |
+| ARM64 JIT | ⚠️ Partial | Structure done |
+| Maps | ✅ Complete | Array, Hash, RingBuf, TimeSeries |
+| **Architecture** | | |
+| x86_64 | ✅ Complete | ACPI, APIC, full boot |
+| AArch64 | ✅ Complete | GIC, DTB, RPi5 platform |
+| RISC-V | ⚠️ Partial | Boot sequence works |
 
----
-
-## Documentation (`docs/`)
-
-Architecture and design decisions are documented explicitly:
-
-```
-docs/
-├── ARCHITECTURE_SUPPORT.md   # Supported CPUs and constraints
-├── MULTI_ARCH_STRATEGY.md    # Cross-architecture design approach
-├── PORTING_DESIGN.md         # How to port to new platforms
-├── RISCV.md                  # RISC-V–specific notes
-├── RPI5_PROPOSAL.md          # Raspberry Pi 5 bring-up plan
-└── RPI5_TODO.md              # Pi 5 implementation checklist
-```
-
-Reading these is strongly recommended before contributing.
+**Next milestone:** Wire BPF subsystem into the running kernel (syscall, attach points, helpers).
 
 ---
 
-## Kernel Layout (`kernel/`)
-
-The kernel is organized as a **collection of internal crates**, each representing a subsystem.
-
-### Kernel Subsystems
-
-```
-kernel/crates/
-├── kernel_abi              # Kernel ↔ userspace ABI definitions
-├── kernel_bpf              # eBPF core subsystem
-├── kernel_devfs            # Device filesystem
-├── kernel_device           # Device abstraction layer
-├── kernel_elfloader        # ELF binary loader
-├── kernel_memapi           # Memory management APIs
-├── kernel_pci              # PCI enumeration and drivers
-├── kernel_physical_memory  # Physical memory allocator
-├── kernel_virtual_memory   # Paging and address spaces
-├── kernel_syscall          # Syscall dispatch
-└── kernel_vfs              # Virtual filesystem layer
-```
-
-Each crate is designed to be:
-
-* Logically isolated
-* Testable where possible
-* Replaceable without destabilizing the kernel
-
----
-
-### Core Kernel Source
-
-```
-kernel/src/
-├── arch/              # Architecture-specific implementations
-├── driver/            # Hardware drivers
-├── mem/               # Memory glue code
-├── syscall/           # Syscall handlers
-├── file/              # File abstractions
-├── mcore/             # Multi-core support
-├── acpi.rs
-├── apic.rs
-├── hpet.rs
-├── time.rs
-├── backtrace.rs
-├── limine.rs
-├── log.rs
-├── serial.rs
-├── sse.rs
-└── main.rs            # Kernel entry point
-```
-
-Separate entry points exist for different architectures, including minimal RISC-V bring-up paths.
-
----
-
-## Userspace (`userspace/`)
-
-Userspace is intentionally minimal and tightly controlled.
-
-```
-userspace/
-├── init/            # Initial userspace process
-├── minilib/         # Minimal userspace support library
-└── file_structure/  # Filesystem layout definitions
-```
-
-Design goals:
-
-* No dependency on glibc
-* Explicit ABI boundary
-* Gradual POSIX feature adoption
-
----
-
-## Building & Running
+## Quick Start
 
 ### Prerequisites
 
-* Rust (nightly, configured via `rust-toolchain.toml`)
-* `xorriso` (ISO creation)
-* `e2fsprogs` (filesystem utilities)
-* QEMU (optional, for emulation)
-
 ```bash
+# Ubuntu/Debian
 sudo apt install xorriso e2fsprogs qemu-system
+
+# Rust nightly (configured via rust-toolchain.toml)
+rustup update
 ```
 
----
-
-### Quick Start (QEMU)
+### Build & Run
 
 ```bash
-# Build and run
+# Build and run in QEMU (x86_64)
 cargo run
 
 # Headless mode
 cargo run -- --headless
 
-# With GDB debugging (localhost:1234)
+# With GDB debugging
 cargo run -- --debug
 
 # Custom resources
 cargo run -- --smp 4 --mem 512M
 ```
 
----
-
-### Architecture-Specific Builds
+### Architecture-Specific
 
 ```bash
 # RISC-V
@@ -230,22 +121,73 @@ cargo run -- --smp 4 --mem 512M
 
 ---
 
-## Testing
+## Repository Structure
 
-Subsystems extracted into standalone crates can be tested on the host:
-
-```bash
-# Run all tests (uses default features)
-cargo test
-
-# Test a specific crate
-cargo test -p kernel_vfs
-cargo test -p kernel_physical_memory
+```
+axiom-ebpf/
+├── kernel/
+│   ├── src/                      # Core kernel
+│   │   ├── main.rs               # Entry points
+│   │   ├── arch/                 # x86_64, aarch64, riscv64
+│   │   ├── mcore/                # Processes, tasks, scheduler
+│   │   ├── mem/                  # Memory management
+│   │   ├── file/                 # VFS layer
+│   │   ├── syscall/              # Syscall handlers
+│   │   └── driver/               # VirtIO, PCI, block
+│   │
+│   └── crates/                   # Kernel subsystems
+│       ├── kernel_bpf/           # BPF subsystem (verifier, JIT, maps)
+│       ├── kernel_abi/           # Syscall numbers, errno
+│       ├── kernel_physical_memory/
+│       ├── kernel_virtual_memory/
+│       ├── kernel_vfs/
+│       ├── kernel_syscall/
+│       ├── kernel_elfloader/
+│       ├── kernel_device/
+│       ├── kernel_devfs/
+│       ├── kernel_pci/
+│       └── kernel_memapi/
+│
+├── userspace/
+│   ├── init/                     # Root process
+│   ├── minilib/                  # Syscall wrappers
+│   ├── rk_cli/                   # Deployment CLI
+│   └── rk_bridge/                # Event consumer
+│
+├── docs/
+│   ├── proposal.md               # Full vision and roadmap
+│   ├── tasks.md                  # Implementation status
+│   └── implementation.md         # Technical details
+│
+├── build.rs                      # ISO/disk image creation
+└── limine.conf                   # Bootloader config
 ```
 
-### Testing kernel_bpf
+---
 
-The `kernel_bpf` crate requires a profile feature. By default, it uses `embedded-profile`:
+## The BPF Subsystem
+
+The heart of Axiom's runtime programmability:
+
+### Streaming Verifier
+
+Standard BPF verifiers hold entire program state in memory (50-100MB). Ours processes in a single forward pass:
+
+```
+Standard:  O(instructions × registers × paths) = ~100MB
+Axiom:     O(registers × basic_block_depth)    = ~50KB
+```
+
+### Profile System
+
+Compile-time selection between deployment targets:
+
+| Profile | Stack | Instructions | JIT | Memory |
+|---------|-------|--------------|-----|--------|
+| Cloud | 512KB | 1M (soft) | Yes | Heap |
+| Embedded | 8KB | 100K (hard) | Optional | 64KB static pool |
+
+### Testing
 
 ```bash
 # Test with embedded profile (default)
@@ -254,56 +196,73 @@ cargo test -p kernel_bpf
 # Test with cloud profile
 cargo test -p kernel_bpf --no-default-features --features cloud-profile
 
-# Test with embedded profile explicitly
-cargo test -p kernel_bpf --no-default-features --features embedded-profile
+# Run benchmarks
+cargo bench -p kernel_bpf --features cloud-profile
 ```
-
-### Miri (undefined behavior detection)
-
-```bash
-cargo miri setup
-cargo miri test -p kernel_abi
-cargo miri test -p kernel_bpf --no-default-features --features cloud-profile
-```
-
-The kernel binary itself cannot run standard unit tests due to bare-metal constraints.
 
 ---
 
-## Current Status
+## Robotics-Specific Features
 
-* Active research and experimentation
-* Core kernel subsystems functional
-* RISC-V and Raspberry Pi 5 bring-up in progress
-* eBPF integration under active development
+Attach points designed for embedded systems:
 
-Expect breaking changes.
+```c
+// GPIO - safety interlocks
+SEC("gpio/chip0/line17/rising")
+int limit_switch(struct gpio_event *evt) {
+    bpf_motor_emergency_stop(MOTOR_ALL);
+    return 0;
+}
+
+// PWM - motor observation
+SEC("pwm/chip0/channel0")
+int trace_motor(struct pwm_state *state) {
+    bpf_ringbuf_output(&events, &state, sizeof(*state), 0);
+    return 0;
+}
+
+// IIO - sensor filtering
+SEC("iio/device0/accel_x")
+int filter_accel(struct iio_event *evt) {
+    return (evt->value >= MIN && evt->value <= MAX) ? 1 : 0;
+}
+```
 
 ---
 
-## Who This Is For
+## Comparison
 
-This project is intended for:
+| | Linux + eBPF | Zephyr | FreeRTOS | Axiom |
+|---|---|---|---|---|
+| Runtime programmable | Partial | No | No | **Yes** |
+| Verified programs | Yes | No | No | **Yes** |
+| Memory footprint | 100MB+ | <1MB | <100KB | **<10MB** |
+| POSIX-ish userspace | Yes | Partial | No | **Yes** |
+| Multi-core | Yes | Limited | Limited | **Yes** |
+| Robotics focus | No | No | No | **Yes** |
 
-* OS / kernel engineers
-* Systems researchers
-* Embedded and architecture researchers
-* Students exploring kernel design beyond Linux
-* Anyone interested in **eBPF as an OS primitive**
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [proposal.md](docs/proposal.md) | Full vision, architecture, business model |
+| [tasks.md](docs/tasks.md) | Implementation status and roadmap |
+| [implementation.md](docs/implementation.md) | Technical details, code examples |
 
 ---
 
 ## Contributing
 
-Contributions are welcome, especially in:
+Contributions welcome, especially in:
 
-* Architecture bring-up
-* Memory management
-* eBPF verifier and runtime design
-* Syscall and ABI design
-* Documentation and correctness proofs
+- BPF integration (wiring subsystem into kernel)
+- Architecture bring-up (RISC-V, ARM platforms)
+- Robotics attach points (GPIO, PWM, IIO drivers)
+- Documentation and examples
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
@@ -311,5 +270,15 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
 
 Dual-licensed under:
 
-* **Apache License 2.0**
-* **MIT License**
+- **Apache License 2.0**
+- **MIT License**
+
+---
+
+## Contact
+
+**Author:** Utkarsh
+
+**Target venues:** AgenticOS2026 Workshop (ASPLOS), Robotics conferences
+
+**Status:** Seeking collaborators, funding, and early adopters
