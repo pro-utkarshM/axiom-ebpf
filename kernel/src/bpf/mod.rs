@@ -1,6 +1,7 @@
 pub mod helpers;
 
 use alloc::vec::Vec;
+use alloc::collections::BTreeMap;
 
 use kernel_bpf::bytecode::insn::BpfInsn;
 use kernel_bpf::bytecode::program::BpfProgram;
@@ -10,6 +11,7 @@ use kernel_bpf::profile::ActiveProfile;
 
 pub struct BpfManager {
     programs: Vec<BpfProgram<ActiveProfile>>,
+    attachments: BTreeMap<u32, Vec<u32>>,
 }
 
 impl Default for BpfManager {
@@ -22,6 +24,7 @@ impl BpfManager {
     pub fn new() -> Self {
         Self {
             programs: Vec::new(),
+            attachments: BTreeMap::new(),
         }
     }
 
@@ -55,6 +58,18 @@ impl BpfManager {
         Ok(id)
     }
 
+    pub fn attach(&mut self, attach_type: u32, prog_id: u32) -> Result<(), BpfError> {
+        if prog_id as usize >= self.programs.len() {
+            return Err(BpfError::NotLoaded);
+        }
+        
+        let list = self.attachments.entry(attach_type).or_insert_with(Vec::new);
+        if !list.contains(&prog_id) {
+            list.push(prog_id);
+        }
+        Ok(())
+    }
+
     pub fn execute(&self, program_id: u32, ctx: &BpfContext) -> Result<u64, BpfError> {
         let program = self
             .programs
@@ -63,5 +78,14 @@ impl BpfManager {
 
         let interpreter = Interpreter::<ActiveProfile>::new();
         interpreter.execute(program, ctx)
+    }
+    
+    pub fn execute_hooks(&self, attach_type: u32, ctx: &BpfContext) {
+        if let Some(progs) = self.attachments.get(&attach_type) {
+             for prog_id in progs {
+                 // For now, ignore errors from hooks
+                 let _ = self.execute(*prog_id, ctx);
+             }
+        }
     }
 }

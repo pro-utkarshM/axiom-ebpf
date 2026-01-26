@@ -156,10 +156,20 @@ pub extern "sysv64" fn syscall_handler_impl(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    // 1. Acknowledge interrupt first
     unsafe {
         end_of_interrupt();
     }
+    
+    // 2. Run BPF hooks (AttachType::Timer = 1)
+    if let Some(manager) = crate::BPF_MANAGER.get() {
+        // We use an empty context for timer for now, or could pass time?
+        let ctx = kernel_bpf::execution::BpfContext::empty();
+        // unsafe { crate::serial_print!("."); } 
+        manager.lock().execute_hooks(1, &ctx);
+    }
 
+    // 3. Schedule next task
     let ctx = ExecutionContext::load();
     unsafe {
         ctx.scheduler_mut().reschedule();
