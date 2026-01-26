@@ -74,11 +74,17 @@ pub const BPF_PROG_BIND_MAP: u32 = 35;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BpfAttr {
-    // Note: This struct must match the layout expected by userspace logic.
-    // In Linux this is a union. We implement the "prog_load" variant fields here.
-    pub prog_type: u32,
-    pub insn_cnt: u32,
-    pub insns: u64,   // pointer to instructions
+    // Field 0-1: Used by multiple commands
+    // - MAP_CREATE: map_type, key_size
+    // - PROG_LOAD: prog_type, insn_cnt
+    pub prog_type: u32,  // Also used as map_type for MAP_CREATE
+    pub insn_cnt: u32,   // Also used as key_size for MAP_CREATE
+
+    // Field 2-3: Command-specific
+    // - MAP_CREATE: value_size, max_entries
+    // - PROG_LOAD: insns pointer (u64)
+    pub insns: u64, // Also: value_size (low u32) + max_entries (high u32) for MAP_CREATE
+
     pub license: u64, // pointer to license string
     pub log_level: u32,
     pub log_size: u32,
@@ -96,5 +102,11 @@ pub struct BpfAttr {
     pub line_info: u64,
     pub line_info_cnt: u32,
     pub attach_btf_id: u32,
-    pub attach_prog_fd: u32,
+    pub attach_prog_fd: u32, // Also used as map_fd for MAP_LOOKUP/UPDATE
+
+    // Map element operations (MAP_LOOKUP_ELEM, MAP_UPDATE_ELEM, MAP_DELETE_ELEM)
+    pub map_fd: u32,
+    pub key: u64,   // pointer to key
+    pub value: u64, // pointer to value (or next_key for GET_NEXT_KEY)
+    pub flags: u64, // update flags
 }

@@ -1,5 +1,6 @@
 pub mod helpers;
 
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 
@@ -7,11 +8,13 @@ use kernel_bpf::bytecode::insn::BpfInsn;
 use kernel_bpf::bytecode::program::BpfProgram;
 use kernel_bpf::execution::{BpfContext, BpfError, BpfExecutor, Interpreter};
 use kernel_bpf::loader::BpfLoader;
+use kernel_bpf::maps::{ArrayMap, BpfMap, HashMap as BpfHashMap, MapType};
 use kernel_bpf::profile::ActiveProfile;
 
 pub struct BpfManager {
     programs: Vec<BpfProgram<ActiveProfile>>,
     attachments: BTreeMap<u32, Vec<u32>>,
+    maps: Vec<Box<dyn BpfMap<ActiveProfile>>>,
 }
 
 impl Default for BpfManager {
@@ -25,6 +28,7 @@ impl BpfManager {
         Self {
             programs: Vec::new(),
             attachments: BTreeMap::new(),
+            maps: Vec::new(),
         }
     }
 
@@ -88,4 +92,62 @@ impl BpfManager {
             }
         }
     }
+
+    // --- Map operations ---
+
+    pub fn create_map(
+        &mut self,
+        map_type: u32,
+        key_size: u32,
+        value_size: u32,
+        max_entries: u32,
+    ) -> Result<u32, BpfError> {
+        let map: Box<dyn BpfMap<ActiveProfile>> = match map_type {
+            1 => {
+                // Hash map
+                Box::new(
+                    BpfHashMap::<ActiveProfile>::with_sizes(key_size, value_size, max_entries)
+                        .map_err(|_| BpfError::OutOfMemory)?,
+                )
+            }
+            2 => {
+                // Array map
+                Box::new(
+                    ArrayMap::<ActiveProfile>::with_entries(value_size, max_entries)
+                        .map_err(|_| BpfError::OutOfMemory)?,
+                )
+            }
+            _ => {
+                log::warn!("Unsupported map type: {}", map_type);
+                return Err(BpfError::InvalidInstruction);
+            }
+        };
+
+        let id = self.maps.len() as u32;
+        self.maps.push(map);
+        log::info!(
+            "Created map id={} type={} key_size={} value_size={} max_entries={}",
+            id,
+            map_type,
+            key_size,
+            value_size,
+            max_entries
+        );
+        Ok(id)
+    }
+
+    pub fn map_lookup(&self, map_id: u32, key: &[u8]) -> Option<Vec<u8>> {
+        self.maps.get(map_id as usize)?.lookup(key)
+    }
+
+    pub fn map_update(&self, map_id: u32, key: &[u8], value: &[u8], flags: u64) -> Result<(), BpfError> {
+        let map = self.maps.get(map_id as usize).ok_or(BpfError::NotLoaded)?;
+        map.update(key, value, flags).map_err(|_| BpfError::OutOfMemory)
+    }
+
+    pub fn map_delete(&self, map_id: u32, key: &[u8]) -> Result<(), BpfError> {
+        let map = self.maps.get(map_id as usize).ok_or(BpfError::NotLoaded)?;
+        map.delete(key).map_err(|_| BpfError::NotLoaded)
+    }
 }
+

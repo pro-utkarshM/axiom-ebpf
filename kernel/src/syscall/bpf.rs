@@ -1,6 +1,9 @@
 use alloc::vec::Vec;
 
-use kernel_abi::{BPF_MAP_CREATE, BPF_PROG_ATTACH, BPF_PROG_LOAD, BpfAttr};
+use kernel_abi::{
+    BPF_MAP_CREATE, BPF_MAP_DELETE_ELEM, BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM,
+    BPF_PROG_ATTACH, BPF_PROG_LOAD, BpfAttr,
+};
 use kernel_bpf::bytecode::insn::BpfInsn;
 
 use crate::BPF_MANAGER;
@@ -11,40 +14,137 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
     let cmd_u32 = cmd as u32;
 
     match cmd_u32 {
-        BPF_PROG_ATTACH => {
-            log::info!("sys_bpf: PROG_ATTACH");
+        BPF_MAP_CREATE => {
+            log::info!("sys_bpf: MAP_CREATE");
             if attr_ptr == 0 {
                 return -1; // EFAULT
             }
             let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
 
-            // In Linux, attach is separate, but we reuse target_fd etc or simplied logic.
-            // target_fd -> attach_type for our MVP?
-            // Actually BpfAttr has `attach_bpf_fd` and `attach_type` isn't a top level field in our struct yet, let's check ABI.
-            // Linux BpfAttr uses anonymous union.
-            // We defined `attach_btf_id` and `attach_prog_fd` in `BpfAttr`.
+            // For MAP_CREATE, fields are:
+            // prog_type -> map_type
+            // insn_cnt -> key_size
+            // insns (low u32) -> value_size
+            // insns (high u32) -> max_entries
+            let map_type = attr.prog_type;
+            let key_size = attr.insn_cnt;
+            let value_size = (attr.insns & 0xFFFFFFFF) as u32;
+            let max_entries = ((attr.insns >> 32) & 0xFFFFFFFF) as u32;
 
-            // Let's assume for MVP: target of attachment is passed via `target_fd` (not in our struct yet) or `attach_btf_id`?
-            // Wait, standard `BPF_PROG_ATTACH` uses `target_fd`, `attach_bpf_fd`, `attach_type`.
+            if let Some(manager) = BPF_MANAGER.get() {
+                match manager.lock().create_map(map_type, key_size, value_size, max_entries) {
+                    Ok(map_id) => map_id as isize,
+                    Err(e) => {
+                        log::error!("sys_bpf: MAP_CREATE failed: {}", e);
+                        -1
+                    }
+                }
+            } else {
+                -1
+            }
+        }
+        BPF_MAP_LOOKUP_ELEM => {
+            log::debug!("sys_bpf: MAP_LOOKUP_ELEM");
+            if attr_ptr == 0 {
+                return -1;
+            }
+            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
 
-            // I need to check my BpfAttr definition again.
-            // It has `attach_prog_fd`.
+            let map_id = attr.map_fd;
+            let key_ptr = attr.key as *const u8;
+            let value_ptr = attr.value as *mut u8;
 
-            // Let's rely on `attach_btf_id` as the TYPE for now, or add `attach_type` to struct if missing.
-            // Checking `kernel_abi/src/bpf.rs`...
+            if key_ptr.is_null() || value_ptr.is_null() {
+                return -1;
+            }
 
-            // I added `expected_attach_type`? No.
+            if let Some(manager) = BPF_MANAGER.get() {
+                let mgr = manager.lock();
+                // Get key size from map (for now, assume 4 bytes)
+                let key_size = 4usize; // TODO: get from map def
+                let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
 
-            // Implementation plan said:
-            // let target = attr.target_fd; // Use as attach_type
-            // let prog_id = attr.attach_bpf_fd;
+                if let Some(value) = mgr.map_lookup(map_id, key) {
+                    // Copy value to user buffer
+                    unsafe {
+                        core::ptr::copy_nonoverlapping(value.as_ptr(), value_ptr, value.len());
+                    }
+                    0
+                } else {
+                    -2 // ENOENT
+                }
+            } else {
+                -1
+            }
+        }
+        BPF_MAP_UPDATE_ELEM => {
+            log::debug!("sys_bpf: MAP_UPDATE_ELEM");
+            if attr_ptr == 0 {
+                return -1;
+            }
+            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
 
-            // My struct update earlier added:
-            // pub attach_btf_id: u32,
-            // pub attach_prog_fd: u32,
+            let map_id = attr.map_fd;
+            let key_ptr = attr.key as *const u8;
+            let value_ptr = attr.value as *const u8;
+            let flags = attr.flags;
 
-            // I will use `attach_btf_id` as the "Attach Type" and `attach_prog_fd` as the Program ID for this specific MVP.
-            // This is slightly non-standard naming but works for our internal ABI.
+            if key_ptr.is_null() || value_ptr.is_null() {
+                return -1;
+            }
+
+            if let Some(manager) = BPF_MANAGER.get() {
+                let mgr = manager.lock();
+                // For now, assume fixed sizes (TODO: get from map def)
+                let key_size = 4usize;
+                let value_size = 8usize;
+                let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
+                let value = unsafe { core::slice::from_raw_parts(value_ptr, value_size) };
+
+                match mgr.map_update(map_id, key, value, flags) {
+                    Ok(_) => 0,
+                    Err(e) => {
+                        log::error!("sys_bpf: MAP_UPDATE failed: {}", e);
+                        -1
+                    }
+                }
+            } else {
+                -1
+            }
+        }
+        BPF_MAP_DELETE_ELEM => {
+            log::debug!("sys_bpf: MAP_DELETE_ELEM");
+            if attr_ptr == 0 {
+                return -1;
+            }
+            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
+
+            let map_id = attr.map_fd;
+            let key_ptr = attr.key as *const u8;
+
+            if key_ptr.is_null() {
+                return -1;
+            }
+
+            if let Some(manager) = BPF_MANAGER.get() {
+                let mgr = manager.lock();
+                let key_size = 4usize;
+                let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
+
+                match mgr.map_delete(map_id, key) {
+                    Ok(_) => 0,
+                    Err(_) => -2, // ENOENT
+                }
+            } else {
+                -1
+            }
+        }
+        BPF_PROG_ATTACH => {
+            log::info!("sys_bpf: PROG_ATTACH");
+            if attr_ptr == 0 {
+                return -1;
+            }
+            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
 
             let attach_type = attr.attach_btf_id;
             let prog_id = attr.attach_prog_fd;
@@ -67,10 +167,8 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
         BPF_PROG_LOAD => {
             log::info!("sys_bpf: PROG_LOAD");
 
-            // Safety: We assume the pointer is valid for this MVP.
-            // In a real kernel we would use copy_from_user and validate ranges.
             if attr_ptr == 0 {
-                return -1; // EFAULT
+                return -1;
             }
 
             let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
@@ -84,12 +182,11 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
                     insns_ptr,
                     insn_cnt
                 );
-                return -1; // EINVAL
+                return -1;
             }
 
             log::info!("sys_bpf: loading {} instructions", insn_cnt);
 
-            // Copy instructions from userspace
             let mut insns = Vec::with_capacity(insn_cnt);
             for i in 0..insn_cnt {
                 unsafe {
@@ -97,7 +194,6 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
                 }
             }
 
-            // Load into manager
             if let Some(manager) = BPF_MANAGER.get() {
                 match manager.lock().load_raw_program(insns) {
                     Ok(id) => {
@@ -114,13 +210,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
                 -1
             }
         }
-        BPF_MAP_CREATE => {
-            log::info!("sys_bpf: MAP_CREATE");
-            -1
-        }
         _ => {
             log::warn!("sys_bpf: Unknown command {}", cmd);
             -1
         }
     }
 }
+

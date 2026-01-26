@@ -106,6 +106,9 @@ pub enum BpfError {
 
     /// Program not loaded
     NotLoaded,
+
+    /// Out of memory
+    OutOfMemory,
 }
 
 impl core::fmt::Display for BpfError {
@@ -118,6 +121,7 @@ impl core::fmt::Display for BpfError {
             Self::Timeout => write!(f, "execution timeout"),
             Self::InvalidInstruction => write!(f, "invalid instruction"),
             Self::NotLoaded => write!(f, "program not loaded"),
+            Self::OutOfMemory => write!(f, "out of memory"),
         }
     }
 }
