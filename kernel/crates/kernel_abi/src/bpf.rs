@@ -72,15 +72,29 @@ pub const BPF_LINK_DETACH: u32 = 34;
 pub const BPF_PROG_BIND_MAP: u32 = 35;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct BpfAttr {
-    // This is a simplified union/struct for BPF syscall attributes.
-    // In Linux it is a huge union. We represent common fields.
-    pub test_run_id: u32,
-    pub flags: u32,
-    pub data_in: u64,
-    pub data_out: u64,
-    pub data_size_in: u32,
-    pub data_size_out: u32,
-    // Add more fields as needed for PROG_LOAD etc.
+    // Note: This struct must match the layout expected by userspace logic.
+    // In Linux this is a union. We implement the "prog_load" variant fields here.
+    pub prog_type: u32,
+    pub insn_cnt: u32,
+    pub insns: u64,      // pointer to instructions
+    pub license: u64,    // pointer to license string
+    pub log_level: u32,
+    pub log_size: u32,
+    pub log_buf: u64,    // pointer to log buffer
+    pub kern_version: u32,
+    pub prog_flags: u32,
+    pub prog_name: [u8; 16],
+    pub prog_ifindex: u32,
+    pub expected_attach_type: u32,
+    pub prog_btf_fd: u32,
+    pub func_info_rec_size: u32,
+    pub func_info: u64,
+    pub func_info_cnt: u32,
+    pub line_info_rec_size: u32,
+    pub line_info: u64,
+    pub line_info_cnt: u32,
+    pub attach_btf_id: u32,
+    pub attach_prog_fd: u32,
 }

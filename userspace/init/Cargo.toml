@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 minilib = { path = "../minilib" }
+kernel_abi = { path = "../../kernel/crates/kernel_abi" }
 
 x86_64.workspace = true
 

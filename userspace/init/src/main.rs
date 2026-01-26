@@ -8,21 +8,37 @@ pub extern "C" fn _start() {
     let bytes = b"hello from init!\n";
     write(1, bytes);
     
-    // We can't spawn processes yet in this simplified environment easily without fork/exec syscalls exposed nicely or filesystem.
-    // However, we can construct the same syscall test here or rely on the fact that bpf_loader is built.
-    // Since I can't easily run a separate binary from init without filesystem support (which is minimal),
-    // I will duplicate the test logic here for verification purposes or leave it as is if I can run bpf_loader directly from qemu.
-    
-    // Assuming the user wants to run `bpf_loader` as the init process or similar.
-    // For now, let's add the bpf test call directly to init to verify it works in userspace.
-    
     use minilib::bpf;
-    write(1, b"Testing BPF syscall from init...\n");
-    let res = bpf(5, core::ptr::null(), 0);
-    if res == -1 {
-         write(1, b"BPF syscall responded correctly with -1 (placeholder)\n");
+    use kernel_abi::BpfAttr;
+
+    write(1, b"Loading dynamic BPF program...\n");
+
+    #[repr(C)]
+    struct BpfInsn {
+        code: u8,
+        dst_src: u8,
+        off: i16,
+        imm: i32,
+    }
+    
+    let insns = [
+        BpfInsn { code: 0xb7, dst_src: 0x00, off: 0, imm: 42 }, // r0 = 42
+        BpfInsn { code: 0x95, dst_src: 0x00, off: 0, imm: 0 },  // exit
+    ];
+    
+    let mut attr = BpfAttr::default();
+    attr.prog_type = 1; 
+    attr.insn_cnt = 2;
+    attr.insns = insns.as_ptr() as u64;
+    
+    let attr_ptr = &attr as *const BpfAttr as *const u8;
+    
+    let res = bpf(5, attr_ptr, core::mem::size_of::<BpfAttr>() as i32);
+
+    if res >= 0 {
+         write(1, b"BPF program loaded successfully!\n");
     } else {
-         write(1, b"BPF syscall response unexpected\n");
+         write(1, b"Failed to load BPF program\n");
     }
 
     exit(0);
