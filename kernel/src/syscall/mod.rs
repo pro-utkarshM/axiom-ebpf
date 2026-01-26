@@ -27,6 +27,7 @@ fn hlt() {
 
 #[cfg(target_arch = "x86_64")]
 mod access;
+pub mod bpf;
 
 #[must_use]
 pub fn dispatch_syscall(
@@ -67,6 +68,7 @@ pub fn dispatch_syscall(
         kernel_abi::SYS_OPEN => dispatch_sys_open(arg1, arg2, arg3, arg4),
         kernel_abi::SYS_READ => dispatch_sys_read(arg1, arg2, arg3),
         kernel_abi::SYS_WRITE => dispatch_sys_write(arg1, arg2, arg3),
+        kernel_abi::SYS_BPF => dispatch_sys_bpf(arg1, arg2, arg3),
         _ => {
             error!("unimplemented syscall: {} ({n})", syscall_name(n));
             loop {
@@ -164,6 +166,12 @@ fn dispatch_sys_write(fd: usize, buf: usize, nbyte: usize) -> Result<usize, Errn
     sys_write(&cx, fd, slice)
 }
 
+#[cfg(target_arch = "x86_64")]
+fn dispatch_sys_bpf(cmd: usize, attr: usize, size: usize) -> Result<usize, Errno> {
+    let ret = bpf::sys_bpf(cmd, attr, size);
+    Ok(ret as usize)
+}
+
 #[cfg(not(target_arch = "x86_64"))]
 fn dispatch_sys_getcwd(_path: usize, _size: usize) -> Result<usize, Errno> {
     Err(EINVAL)
@@ -198,5 +206,10 @@ fn dispatch_sys_read(_fd: usize, _buf: usize, _nbyte: usize) -> Result<usize, Er
 
 #[cfg(not(target_arch = "x86_64"))]
 fn dispatch_sys_write(_fd: usize, _buf: usize, _nbyte: usize) -> Result<usize, Errno> {
+    Err(EINVAL)
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn dispatch_sys_bpf(_cmd: usize, _attr: usize, _size: usize) -> Result<usize, Errno> {
     Err(EINVAL)
 }
