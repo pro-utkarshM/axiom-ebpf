@@ -1,7 +1,7 @@
 use core::fmt::Write;
 
 use conquer_once::spin::OnceCell;
-use kernel_devfs::{ArcLockedDevFs, Null, Serial, Zero};
+use kernel_devfs::{ArcLockedDevFs, Null, Serial};
 use kernel_vfs::path::AbsolutePath;
 
 use crate::serial_print;
@@ -37,8 +37,6 @@ pub fn init() {
                 Ok(Serial::<SerialWrite>::default())
             })
             .expect("should be able to register stderr");
-
-
     }
     DEVFS.init_once(|| devfs);
 }
