@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-01-21
+**Analysis Date:** 2026-01-27
 
 ## Directory Layout
 
@@ -53,9 +53,10 @@ axiom-ebpf/
 
 **kernel/crates/kernel_bpf/**
 - Purpose: eBPF subsystem (core research area)
-- Contains: Bytecode, verifier, execution engines, maps, scheduler
+- Contains: Bytecode, verifier, execution engines, maps (Array, HashMap), scheduler
 - Key files: `src/lib.rs`, `src/bytecode/insn.rs`, `src/verifier/core.rs`, `src/execution/interpreter.rs`
 - Subdirectories: `bytecode/`, `verifier/`, `execution/`, `maps/`, `scheduler/`, `profile/`
+- Helpers: `kernel/src/bpf/helpers.rs`
 
 **kernel/crates/kernel_vfs/**
 - Purpose: Virtual filesystem abstraction
@@ -203,5 +204,5 @@ axiom-ebpf/
 
 ---
 
-*Structure analysis: 2026-01-21*
+*Structure analysis: 2026-01-27*
 *Update when directory structure changes*

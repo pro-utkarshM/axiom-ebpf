@@ -1,6 +1,6 @@
 # Architecture
 
-**Analysis Date:** 2026-01-21
+**Analysis Date:** 2026-01-27
 
 ## Pattern Overview
 
@@ -45,10 +45,11 @@
 
 **Application/eBPF Execution Layer:**
 - Purpose: BPF program execution and verification
-- Contains: Bytecode interpreter, JIT compiler, verifier, maps, scheduler
+- Contains: Bytecode interpreter, JIT compiler, verifier, maps (Array, HashMap), scheduler
 - Location: `kernel/crates/kernel_bpf/`
+- Helpers: `kernel/src/bpf/helpers.rs` (ktime, trace_printk, map_lookup/update/delete)
 - Depends on: Core kernel (memory allocation)
-- Used by: Kernel subsystems for extensibility
+- Used by: Kernel subsystems for extensibility, userspace via BPF syscalls
 
 ## Data Flow
 
@@ -166,5 +167,5 @@
 
 ---
 
-*Architecture analysis: 2026-01-21*
+*Architecture analysis: 2026-01-27*
 *Update when major patterns change*
