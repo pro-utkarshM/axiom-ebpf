@@ -483,8 +483,6 @@ enum InsnResult {
     WideLoad,
 }
 
-
-
 #[cfg(test)]
 #[allow(clippy::missing_safety_doc)]
 mod helpers_stub {
@@ -641,7 +639,7 @@ mod tests {
         let program = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
             .insn(BpfInsn::mov64_imm(1, 0)) // r1 = map_id (0)
             .insn(BpfInsn::mov64_imm(2, 0)) // r2 = key_ptr (dummy)
-            .insn(BpfInsn::call(3))         // r0 = bpf_map_lookup_elem(r1, r2)
+            .insn(BpfInsn::call(3)) // r0 = bpf_map_lookup_elem(r1, r2)
             .exit()
             .build()
             .expect("valid program");
@@ -669,7 +667,7 @@ mod tests {
             .insn(BpfInsn::mov64_imm(2, 0)) // r2 = key_ptr (dummy)
             .insn(BpfInsn::mov64_imm(3, 0)) // r3 = value_ptr (dummy)
             .insn(BpfInsn::mov64_imm(4, 0)) // r4 = flags (0)
-            .insn(BpfInsn::call(4))         // r0 = bpf_map_update_elem(r1, r2, r3, r4)
+            .insn(BpfInsn::call(4)) // r0 = bpf_map_update_elem(r1, r2, r3, r4)
             .exit()
             .build()
             .expect("valid program");
@@ -691,7 +689,7 @@ mod tests {
         let program = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
             .insn(BpfInsn::mov64_imm(1, 0)) // r1 = map_id (0)
             .insn(BpfInsn::mov64_imm(2, 0)) // r2 = key_ptr (dummy)
-            .insn(BpfInsn::call(5))         // r0 = bpf_map_delete_elem(r1, r2)
+            .insn(BpfInsn::call(5)) // r0 = bpf_map_delete_elem(r1, r2)
             .exit()
             .build()
             .expect("valid program");
@@ -704,4 +702,3 @@ mod tests {
         assert_eq!(result, Ok(0));
     }
 }
-

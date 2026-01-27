@@ -8,7 +8,7 @@ use kernel_bpf::bytecode::insn::BpfInsn;
 use kernel_bpf::bytecode::program::BpfProgram;
 use kernel_bpf::execution::{BpfContext, BpfError, BpfExecutor, Interpreter};
 use kernel_bpf::loader::BpfLoader;
-use kernel_bpf::maps::{ArrayMap, BpfMap, HashMap as BpfHashMap, MapType};
+use kernel_bpf::maps::{ArrayMap, BpfMap, HashMap as BpfHashMap};
 use kernel_bpf::profile::ActiveProfile;
 
 pub struct BpfManager {
@@ -141,14 +141,26 @@ impl BpfManager {
     }
 
     /// Look up a value by key and return a raw pointer.
+    ///
+    /// # Safety
+    /// The caller must ensure the map will not be resized or deleted while the
+    /// pointer is in use. The returned pointer is only valid while the map lock
+    /// is held by the caller.
     pub unsafe fn map_lookup_ptr(&self, map_id: u32, key: &[u8]) -> Option<*mut u8> {
         // Safety: caller ensures map will not be resized or deleted while pointer is in use
         unsafe { self.maps.get(map_id as usize)?.lookup_ptr(key) }
     }
 
-    pub fn map_update(&self, map_id: u32, key: &[u8], value: &[u8], flags: u64) -> Result<(), BpfError> {
+    pub fn map_update(
+        &self,
+        map_id: u32,
+        key: &[u8],
+        value: &[u8],
+        flags: u64,
+    ) -> Result<(), BpfError> {
         let map = self.maps.get(map_id as usize).ok_or(BpfError::NotLoaded)?;
-        map.update(key, value, flags).map_err(|_| BpfError::OutOfMemory)
+        map.update(key, value, flags)
+            .map_err(|_| BpfError::OutOfMemory)
     }
 
     pub fn map_delete(&self, map_id: u32, key: &[u8]) -> Result<(), BpfError> {
@@ -160,4 +172,3 @@ impl BpfManager {
         self.maps.get(map_id as usize).map(|m| m.def())
     }
 }
-

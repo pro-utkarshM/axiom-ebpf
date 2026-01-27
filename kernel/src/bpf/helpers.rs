@@ -18,6 +18,11 @@ pub extern "C" fn bpf_trace_printk(fmt: *const u8, _size: u32) -> i32 {
     -1
 }
 
+/// BPF helper: look up a map element by key.
+///
+/// # Safety
+/// Called from verified BPF programs. The verifier ensures key_ptr is valid.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_map_lookup_elem(map_id: u32, key_ptr: *const u8) -> *mut u8 {
     use crate::BPF_MANAGER;
@@ -36,6 +41,11 @@ pub extern "C" fn bpf_map_lookup_elem(map_id: u32, key_ptr: *const u8) -> *mut u
     core::ptr::null_mut()
 }
 
+/// BPF helper: update a map element.
+///
+/// # Safety
+/// Called from verified BPF programs. The verifier ensures pointers are valid.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_map_update_elem(
     map_id: u32,
@@ -49,11 +59,11 @@ pub extern "C" fn bpf_map_update_elem(
         if let Some(def) = manager.get_map_def(map_id) {
             let key_size = def.key_size as usize;
             let value_size = def.value_size as usize;
-            
+
             // Safety: Verifier ensures valid memory access
             let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
             let value = unsafe { core::slice::from_raw_parts(value_ptr, value_size) };
-            
+
             if manager.map_update(map_id, key, value, flags).is_ok() {
                 return 0;
             }
@@ -62,6 +72,11 @@ pub extern "C" fn bpf_map_update_elem(
     -1
 }
 
+/// BPF helper: delete a map element.
+///
+/// # Safety
+/// Called from verified BPF programs. The verifier ensures key_ptr is valid.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_map_delete_elem(map_id: u32, key_ptr: *const u8) -> i32 {
     use crate::BPF_MANAGER;

@@ -1,8 +1,8 @@
 use alloc::vec::Vec;
 
 use kernel_abi::{
-    BPF_MAP_CREATE, BPF_MAP_DELETE_ELEM, BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM,
-    BPF_PROG_ATTACH, BPF_PROG_LOAD, BpfAttr,
+    BPF_MAP_CREATE, BPF_MAP_DELETE_ELEM, BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM, BPF_PROG_ATTACH,
+    BPF_PROG_LOAD, BpfAttr,
 };
 use kernel_bpf::bytecode::insn::BpfInsn;
 
@@ -32,7 +32,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
             let max_entries = ((attr.insns >> 32) & 0xFFFFFFFF) as u32;
 
             if let Some(manager) = BPF_MANAGER.get() {
-                match manager.lock().create_map(map_type, key_size, value_size, max_entries) {
+                match manager
+                    .lock()
+                    .create_map(map_type, key_size, value_size, max_entries)
+                {
                     Ok(map_id) => map_id as isize,
                     Err(e) => {
                         log::error!("sys_bpf: MAP_CREATE failed: {}", e);
@@ -216,4 +219,3 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
         }
     }
 }
-

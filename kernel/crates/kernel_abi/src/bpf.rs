@@ -77,8 +77,8 @@ pub struct BpfAttr {
     // Field 0-1: Used by multiple commands
     // - MAP_CREATE: map_type, key_size
     // - PROG_LOAD: prog_type, insn_cnt
-    pub prog_type: u32,  // Also used as map_type for MAP_CREATE
-    pub insn_cnt: u32,   // Also used as key_size for MAP_CREATE
+    pub prog_type: u32, // Also used as map_type for MAP_CREATE
+    pub insn_cnt: u32,  // Also used as key_size for MAP_CREATE
 
     // Field 2-3: Command-specific
     // - MAP_CREATE: value_size, max_entries
