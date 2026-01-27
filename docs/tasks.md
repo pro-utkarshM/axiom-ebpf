@@ -2,15 +2,15 @@
 
 ## Implementation Status Overview
 
-Axiom is a **complete operating system kernel** with BPF as a first-class primitive. The kernel boots on real hardware (x86_64, AArch64/RPi5, RISC-V). The BPF subsystem is fully implemented as a library. The next milestone is **integration** - wiring the BPF subsystem into the running kernel.
+Axiom is a **complete operating system kernel** with BPF as a first-class primitive. The kernel boots on real hardware (x86_64, AArch64/RPi5, RISC-V). The BPF subsystem is fully implemented as a library. BPF integration is **in progress** with basic syscall support and manager structure in place.
 
 | Layer | Status | Description |
 |-------|--------|-------------|
 | Kernel Core | ✅ Complete | Boot, memory, processes, VFS, syscalls |
 | BPF Subsystem | ✅ Complete | Verifier, interpreter, JIT, maps, signing |
-| BPF Integration | ❌ Not Started | Connect BPF to kernel events |
+| BPF Integration | ⚠️ In Progress | Manager + syscall exist, needs hardening |
 | Hardware Attach | ❌ Not Started | GPIO, PWM, timer hooks on RPi5 |
-| Example Programs | ❌ Not Started | Demo .bpf programs |
+| Example Programs | ⚠️ Partial | BPF maps demo exists |
 
 ---
 
@@ -43,12 +43,15 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
                               │ GAP: Integration
                               ▼
 ┌──────────────────────────────────────────────────────────────┐
-│                      NOT YET CONNECTED                       │
+│                    INTEGRATION STATUS                        │
 │                                                              │
-│  • No bpf() syscall                                         │
-│  • BPF library not called from kernel                       │
-│  • Attach points are abstractions, not hooked to hardware   │
-│  • No way to load BPF programs at runtime                   │
+│  ✅ bpf() syscall exists (kernel/src/syscall/bpf.rs)        │
+│  ✅ BpfManager exists (kernel/src/bpf/mod.rs)               │
+│  ✅ BPF maps demo working (kernel/demos/)                   │
+│  ⚠️ Hardcoded map sizes (4-byte key, 8-byte value only)    │
+│  ⚠️ Unsafe pointer casts without validation                 │
+│  ❌ Attach points not hooked to hardware                    │
+│  ❌ Timer/GPIO/syscall tracing hooks not implemented        │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -166,37 +169,46 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
 
 ---
 
-## Phase 3: BPF Integration ❌ CURRENT PRIORITY
+## Phase 3: BPF Integration ⚠️ IN PROGRESS
 
 ### BPF Manager (kernel component)
-- [ ] `BpfManager` struct in kernel
+- [x] `BpfManager` struct in kernel (`kernel/src/bpf/mod.rs`)
   - Holds loaded programs
   - Manages program lifecycle
   - Tracks attached programs
-- [ ] Integration with kernel initialization
+- [x] Integration with kernel initialization
 
 ### bpf() Syscall
-- [ ] Add SYS_BPF to kernel_abi
-- [ ] Syscall handler in kernel_syscall
-- [ ] Commands:
-  - [ ] BPF_PROG_LOAD
-  - [ ] BPF_MAP_CREATE
-  - [ ] BPF_PROG_ATTACH
-  - [ ] BPF_PROG_DETACH
-  - [ ] BPF_MAP_LOOKUP
-  - [ ] BPF_MAP_UPDATE
+- [x] Add SYS_BPF to kernel_abi
+- [x] Syscall handler (`kernel/src/syscall/bpf.rs`)
+- [x] Commands implemented:
+  - [x] BPF_PROG_LOAD
+  - [x] BPF_MAP_CREATE
+  - [x] BPF_PROG_ATTACH
+  - [x] BPF_PROG_DETACH
+  - [x] BPF_MAP_LOOKUP
+  - [x] BPF_MAP_UPDATE
+
+### ⚠️ Known Issues (from codebase analysis)
+- [ ] **Hardcoded BPF Map Sizes** - All maps assume 4-byte keys, 8-byte values
+  - File: `kernel/src/syscall/bpf.rs` (lines 67, 101-103)
+  - Fix: Extract key/value sizes from BpfAttr structure
+- [ ] **Unsafe Pointer Casts** - User pointers cast without validation
+  - File: `kernel/src/syscall/bpf.rs` (lines 22, 54, 88, 123, 150, 177)
+  - Fix: Add address space, alignment, and bounds validation
+- [ ] **Missing Safety Comments** - Unsafe blocks lack SAFETY documentation
 
 ### Attach Point Implementation
-- [ ] Timer interrupt hook
-  - [ ] Hook into HPET/ARM timer
-  - [ ] Execute BPF on each tick
-  - [ ] Pass timer context to program
-- [ ] Syscall tracing
-  - [ ] Hook syscall entry/exit
-  - [ ] Pass syscall args to BPF
-- [ ] Function tracing (kprobe-like)
-  - [ ] Hook arbitrary kernel functions
-  - [ ] Requires some form of instrumentation
+- [x] Attach point abstractions exist (`kernel_bpf/src/attach/`)
+  - [x] Kprobe abstraction
+  - [x] Tracepoint abstraction
+  - [x] GPIO abstraction
+  - [x] PWM abstraction
+  - [x] IIO abstraction
+- [ ] **Wire to actual kernel events** (NOT DONE)
+  - [ ] Timer interrupt hook (HPET/ARM timer)
+  - [ ] Syscall entry/exit hooks
+  - [ ] Function tracing instrumentation
 
 ### Helper Implementation
 - [ ] bpf_ktime_get_ns() - read kernel time
@@ -210,6 +222,61 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
 - [ ] Update minilib with bpf() syscall wrapper
 - [ ] Simple BPF loader program
 - [ ] Test loading program from userspace
+
+---
+
+## Technical Debt & Concerns
+
+### Security Issues (Priority: High)
+- [ ] **Syscall Pointer Validation** - User pointers passed to unsafe blocks
+  - Current: Basic null check only (`if attr_ptr == 0`)
+  - Needed: Address space verification, alignment validation, bounds checking
+  - Files: `kernel/src/syscall/bpf.rs` (lines 22, 54, 88, 123, 150, 177)
+
+### Code Quality (Priority: Medium)
+- [ ] **Missing SAFETY Comments** - 70+ files with unsafe blocks lack documentation
+  - Files: Throughout `kernel/src/`, especially `syscall/`, `arch/`
+- [ ] **Edition 2024 in Cargo.toml** - Doesn't exist, should be "2021"
+  - Files: `Cargo.toml`, `kernel/Cargo.toml`
+
+### Performance (Priority: Low)
+- [ ] **Linear Physical Memory Search** - O(n) per allocation
+  - File: `kernel/crates/kernel_physical_memory/src/lib.rs` (lines 73-80)
+  - Fix: Add buddy allocator or bitmap-based tracking
+- [ ] **BTreeMap for VFS Paths** - O(log n) on every file operation
+  - File: `kernel/crates/kernel_vfs/src/vfs/mod.rs` (line 23)
+  - Fix: Trie-based mount point tracking
+
+### Missing Features (Priority: Medium)
+- [ ] **BTF Parsing** - Binary Type Format not implemented
+  - File: `kernel/crates/kernel_bpf/src/loader/mod.rs` (line 152)
+  - Blocks: Rich debugging, CO-RE (Compile Once Run Everywhere)
+- [ ] **VFS Node Reuse** - Repeated file opens create new VfsNodes
+  - File: `kernel/crates/kernel_vfs/src/vfs/mod.rs` (line 89)
+- [ ] **Mount Point Validation** - Can mount at non-directory paths
+  - File: `kernel/crates/kernel_vfs/src/vfs/mod.rs` (line 57)
+
+### Platform Gaps
+- [ ] **RISC-V Incomplete**
+  - `kernel/src/main_riscv.rs` - Only prints TODO messages
+  - `kernel/src/arch/riscv64/interrupts.rs` - PLIC not implemented
+  - `kernel/src/arch/riscv64/paging.rs` - Kernel page tables not set up
+- [ ] **AArch64 Demand Paging** - Not implemented
+  - `kernel/src/arch/aarch64/exceptions.rs` (line 178)
+  - Impact: All memory must be pre-allocated
+- [ ] **ARM64 JIT Stack** - Hardcoded 512-byte stack
+  - File: `kernel/crates/kernel_bpf/src/execution/jit_aarch64.rs` (line 634)
+
+### Test Coverage Gaps (Priority: High)
+- [ ] BPF syscall handler - No unit tests
+- [ ] Unsafe pointer operations - Limited testing
+- [ ] RISC-V platform - No automated tests
+- [ ] JIT compiler correctness - Limited coverage
+
+### Dependencies at Risk
+- [ ] `zerocopy = "0.9.0-alpha.0"` - Alpha version
+- [ ] `sha3 = "0.11.0-rc.3"` - Release candidate
+- [ ] Git dependencies (`mkfs-ext2`, `mkfs-filesystem`) - Not versioned
 
 ---
 
@@ -240,9 +307,10 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
 
 ---
 
-## Phase 5: Validation & Demos ❌ NOT STARTED
+## Phase 5: Validation & Demos ⚠️ PARTIAL
 
 ### Example BPF Programs
+- [x] BPF maps demo (`kernel/demos/`) - Timer tick counter with maps
 - [ ] `hello.bpf.c` - minimal program, prints to serial
 - [ ] `counter.bpf.c` - counts events using map
 - [ ] `syscall_trace.bpf.c` - traces syscall entry/exit
@@ -281,7 +349,10 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
 | `kernel/src/mem/` | Memory management glue |
 | `kernel/src/file/` | VFS, Ext2, DevFS |
 | `kernel/src/syscall/` | Syscall handlers |
+| `kernel/src/syscall/bpf.rs` | **BPF syscall handler** |
+| `kernel/src/bpf/` | **BPF manager (kernel-side)** |
 | `kernel/src/driver/` | VirtIO, PCI |
+| `kernel/demos/` | **Demo programs (BPF maps demo)** |
 
 ### Kernel Crates
 | Path | Description |
@@ -325,3 +396,14 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
 | `docs/tasks.md` | This file |
 | `docs/implementation.md` | Implementation details |
 | `docs/howto.md` | Usage guide |
+
+### Codebase Analysis (`.planning/codebase/`)
+| Path | Description |
+|------|-------------|
+| `ARCHITECTURE.md` | System architecture and data flow |
+| `STRUCTURE.md` | Directory layout and key files |
+| `STACK.md` | Technology stack and dependencies |
+| `CONVENTIONS.md` | Coding conventions and patterns |
+| `TESTING.md` | Test framework and CI pipeline |
+| `INTEGRATIONS.md` | External integrations |
+| `CONCERNS.md` | Technical debt and known issues |

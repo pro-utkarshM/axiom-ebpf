@@ -1,28 +1,31 @@
 # Axiom Implementation Roadmap
 
-## Current Priority: BPF Integration
+## Current Priority: BPF Integration Hardening
 
-The kernel boots. The BPF subsystem is complete. Now we connect them.
+The kernel boots. The BPF subsystem is complete as a library. **Basic integration exists** - BpfManager and bpf() syscall are implemented. The focus now is **hardening, attach point wiring, and testing**.
 
 ```
-BEFORE (current state)
-──────────────────────
-Kernel runs → init prints "hello" → done
+CURRENT STATE (2026-01-27)
+──────────────────────────
+Kernel runs → BPF manager initialized → programs loadable via syscall
+           → BPF maps demo works → basic program execution
 
-AFTER (goal)
-────────────
-Kernel runs → BPF manager initialized → programs loadable
-           → attach to timer/syscalls/GPIO → BPF executes on events
-           → userspace can load programs via syscall
+REMAINING WORK
+──────────────
+→ Fix hardcoded map sizes (security issue)
+→ Add pointer validation (security issue)
+→ Wire attach points to actual kernel events
+→ Implement helpers for kernel interaction
+→ Add comprehensive tests
 ```
 
 ---
 
 ## Phase 3: BPF Integration
 
-### Step 1: BPF Manager
+### Step 1: BPF Manager ✅ DONE
 
-**Location:** `kernel/src/bpf/mod.rs` (new)
+**Location:** `kernel/src/bpf/mod.rs`
 
 **Goal:** Kernel component that manages BPF programs.
 
@@ -112,16 +115,26 @@ static BPF_MANAGER: OnceCell<Mutex<BpfManager>> = OnceCell::new();
 
 ---
 
-### Step 2: bpf() Syscall
+### Step 2: bpf() Syscall ✅ DONE (needs hardening)
 
-**Location:** `kernel/crates/kernel_abi/src/syscall.rs`
+**Location:** `kernel/crates/kernel_abi/src/syscall.rs` - SYS_BPF defined
 
-Add syscall number:
-```rust
-pub const SYS_BPF: usize = 50;
-```
+**Location:** `kernel/src/syscall/bpf.rs` - Handler implemented
 
-**Location:** `kernel/src/syscall/bpf.rs` (new)
+**⚠️ Known Issues (from codebase analysis):**
+
+1. **Hardcoded BPF Map Sizes** (lines 67, 101-103)
+   - All maps assume 4-byte keys and 8-byte values
+   - Fix: Extract key/value sizes from BpfAttr structure
+
+2. **Unsafe Pointer Casts** (lines 22, 54, 88, 123, 150, 177)
+   - User pointers cast directly to kernel structures
+   - Security risk: Could read/write arbitrary kernel memory
+   - Fix: Add address space, alignment, and bounds validation
+
+3. **Basic Null Check Only**
+   - Current validation: `if attr_ptr == 0`
+   - Needed: Full address space verification
 
 ```rust
 // BPF syscall commands
@@ -183,9 +196,11 @@ match syscall_num {
 
 ---
 
-### Step 3: Timer Attach Point
+### Step 3: Timer Attach Point ❌ NOT WIRED
 
 **Goal:** Execute BPF program on every timer tick.
+
+**Status:** Timer attach abstraction exists in `kernel_bpf/src/attach/`, but not connected to actual timer interrupts.
 
 **Location:** Modify existing timer interrupt handler.
 
@@ -214,9 +229,11 @@ For AArch64 (similar pattern in ARM timer handler).
 
 ---
 
-### Step 4: Syscall Tracing Attach Point
+### Step 4: Syscall Tracing Attach Point ❌ NOT WIRED
 
 **Goal:** Execute BPF program on syscall entry/exit.
+
+**Status:** Tracepoint attach abstraction exists in `kernel_bpf/src/attach/`, but not connected to syscall dispatcher.
 
 **Location:** `kernel/src/syscall/mod.rs`
 
@@ -255,9 +272,9 @@ fn run_bpf_syscall_enter(syscall_num: usize, args: &[usize; 6]) {
 
 ---
 
-### Step 5: Helper Implementation
+### Step 5: Helper Implementation ❌ NOT DONE
 
-**Location:** `kernel/src/bpf/helpers.rs` (new)
+**Location:** `kernel/src/bpf/helpers.rs` (needs creation)
 
 ```rust
 /// Get current kernel time in nanoseconds
@@ -319,11 +336,11 @@ fn dispatch_helper(helper_id: u32, args: [u64; 5]) -> u64 {
 
 ---
 
-### Step 6: Userspace BPF Loader
+### Step 6: Userspace BPF Loader ❌ NOT DONE
 
 **Location:** `userspace/minilib/src/lib.rs`
 
-Add bpf() syscall wrapper:
+Add bpf() syscall wrapper (not yet implemented):
 
 ```rust
 pub fn bpf(cmd: u32, attr: *const u8, size: usize) -> i64 {
@@ -506,27 +523,28 @@ cargo build --target aarch64-unknown-none --release
 
 ## Milestones
 
-### Milestone 1: BPF Runs in Kernel (Week 1-2)
-- [ ] BpfManager integrated into kernel
-- [ ] Hardcoded BPF program executes during init
-- [ ] Output visible on serial console
+### Milestone 1: BPF Runs in Kernel ✅ COMPLETE
+- [x] BpfManager integrated into kernel
+- [x] BPF maps demo executes during init
+- [x] Output visible on serial console
 
-### Milestone 2: Syscall Works (Week 2-3)
-- [ ] bpf() syscall implemented
-- [ ] Can load program from userspace
+### Milestone 2: Syscall Works ⚠️ PARTIAL
+- [x] bpf() syscall implemented
+- [ ] Security hardening (pointer validation, map sizes)
+- [ ] Can load program from userspace (needs testing)
 - [ ] Program executes successfully
 
-### Milestone 3: Attach Points Work (Week 3-4)
+### Milestone 3: Attach Points Work ❌ NOT STARTED
 - [ ] Timer attach point working
 - [ ] Syscall tracing working
 - [ ] BPF runs on events
 
-### Milestone 4: RPi5 Demo (Week 5-6)
-- [ ] Kernel boots on RPi5
+### Milestone 4: RPi5 Demo ❌ NOT STARTED
+- [x] Kernel boots on RPi5 (AArch64 support complete)
 - [ ] GPIO driver working
 - [ ] Button → BPF → LED demo
 
-### Milestone 5: Full Demo (Week 7-8)
+### Milestone 5: Full Demo ❌ NOT STARTED
 - [ ] Multiple example programs
 - [ ] Safety interlock demo
 - [ ] Performance benchmarks
@@ -536,27 +554,34 @@ cargo build --target aarch64-unknown-none --release
 
 ## File Changes Summary
 
-### New Files
+### Existing Files (from codebase analysis)
 ```
 kernel/src/bpf/
-├── mod.rs          # BpfManager
-├── helpers.rs      # Helper implementations
-└── context.rs      # BPF context types
+└── mod.rs              # ✅ BpfManager EXISTS
 
-kernel/src/syscall/bpf.rs    # bpf() syscall handler
+kernel/src/syscall/bpf.rs    # ✅ bpf() syscall handler EXISTS (needs hardening)
+
+kernel/demos/               # ✅ BPF maps demo EXISTS
+```
+
+### Files to Create
+```
+kernel/src/bpf/
+├── helpers.rs          # Helper implementations
+└── context.rs          # BPF context types
 
 kernel/src/driver/gpio/
-├── mod.rs          # GPIO abstraction
-└── rpi5.rs         # RPi5 GPIO driver
+├── mod.rs              # GPIO abstraction
+└── rpi5.rs             # RPi5 GPIO driver
 
 userspace/bpf_loader/        # Test program
 ```
 
-### Modified Files
+### Files to Modify
 ```
-kernel/src/lib.rs            # Add BPF init
-kernel/src/syscall/mod.rs    # Add SYS_BPF dispatch
-kernel/crates/kernel_abi/src/syscall.rs  # Add SYS_BPF constant
+kernel/src/syscall/bpf.rs    # Fix hardcoded map sizes, add pointer validation
+kernel/src/lib.rs            # Verify BPF init sequence
+kernel/src/syscall/mod.rs    # Verify SYS_BPF dispatch
 kernel/crates/kernel_bpf/src/execution/interpreter.rs  # Wire real helpers
 ```
 
@@ -573,3 +598,61 @@ kernel_bpf = { path = "crates/kernel_bpf", default-features = false, features = 
 ```
 
 Ensure kernel_bpf is no_std compatible (it should already be).
+
+---
+
+## Technical Debt Summary
+
+*From codebase analysis (2026-01-27). See `.planning/codebase/CONCERNS.md` for details.*
+
+### Critical (Security)
+
+| Issue | Location | Impact |
+|-------|----------|--------|
+| Hardcoded map sizes | `kernel/src/syscall/bpf.rs:67,101-103` | Buffer overflow risk |
+| Unsafe pointer casts | `kernel/src/syscall/bpf.rs:22,54,88,123,150,177` | Arbitrary kernel memory access |
+| Basic null check only | `kernel/src/syscall/bpf.rs` | Insufficient validation |
+
+### High Priority
+
+| Issue | Location | Impact |
+|-------|----------|--------|
+| Missing SAFETY comments | 70+ files in `kernel/src/` | Audit difficulty |
+| No BPF syscall tests | `kernel/src/syscall/bpf.rs` | Unverified behavior |
+| ARM64 JIT stack hardcoded | `kernel_bpf/src/execution/jit_aarch64.rs:634` | Stack overflow risk |
+
+### Medium Priority
+
+| Issue | Location | Impact |
+|-------|----------|--------|
+| Edition 2024 in Cargo.toml | Root and kernel Cargo.toml | Build failure on standard toolchains |
+| VFS node reuse missing | `kernel_vfs/src/vfs/mod.rs:89` | Performance degradation |
+| BTF parsing not implemented | `kernel_bpf/src/loader/mod.rs:152` | No CO-RE support |
+
+### Platform Gaps
+
+| Platform | Status | Missing |
+|----------|--------|---------|
+| x86_64 | ✅ Complete | - |
+| AArch64/RPi5 | ⚠️ Partial | Demand paging |
+| RISC-V | ❌ Incomplete | PLIC, paging, most functionality |
+
+### Dependencies at Risk
+
+| Dependency | Version | Risk |
+|------------|---------|------|
+| zerocopy | 0.9.0-alpha.0 | Alpha - API may change |
+| sha3 | 0.11.0-rc.3 | RC - may have bugs |
+| mkfs-ext2 | Git | Unversioned - may break |
+| mkfs-filesystem | Git | Unversioned - may break |
+
+---
+
+## Next Steps (Recommended Order)
+
+1. **Security Hardening** - Fix pointer validation and map sizes in `bpf.rs`
+2. **Add Tests** - Unit tests for BPF syscall handler
+3. **Wire Timer Attach** - Connect timer interrupt to BPF execution
+4. **Implement Helpers** - `bpf_ktime_get_ns()`, `bpf_trace_printk()`
+5. **Userspace Loader** - Create `userspace/bpf_loader/` test program
+6. **End-to-End Demo** - Load program from userspace, see output
