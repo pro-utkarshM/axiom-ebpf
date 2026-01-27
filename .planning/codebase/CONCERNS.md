@@ -4,189 +4,174 @@
 
 ## Tech Debt
 
-**External tool dependency for disk image creation:**
-- Issue: Uses external `mke2fs` command instead of Rust crate
-- Files: `build.rs` line 44-60
-- Why: Rapid prototyping, mkfs-ext2 crate not ready
-- Impact: Build depends on e2fsprogs system package, not portable
-- Fix approach: Use mkfs-ext2 crate once stable
+**Hardcoded BPF Map Sizes:**
+- Issue: All BPF maps assumed to have 4-byte keys and 8-byte values
+- Files: `kernel/src/syscall/bpf.rs` (lines 67, 101-103)
+- Why: Rapid implementation without proper map definition parsing
+- Impact: Breaks any map with different sizing, buffer overflow risk
+- Fix approach: Extract key/value sizes from BpfAttr structure properly
 
-**Incomplete memory deallocation:**
-- Issue: Physical memory frames not deallocated on process exit
-- Files: `kernel/src/mcore/mtask/process/mem.rs` lines 121, 148, 160 (three `todo!()` calls)
-- Files: `kernel/src/mcore/mtask/process/mod.rs` line 235
-- Why: Memory management implementation in progress
-- Impact: Memory leak on process termination
-- Fix approach: Implement proper frame deallocation in memory region cleanup
+**Unsafe Pointer Casts Without Validation:**
+- Issue: User-provided pointers cast directly to kernel structures
+- Files: `kernel/src/syscall/bpf.rs` (lines 22, 54, 88, 123, 150, 177)
+- Why: Initial implementation prioritized functionality
+- Impact: Security risk - could read/write arbitrary kernel memory
+- Fix approach: Add address space, alignment, and bounds validation
 
-**Unnecessary Arc clone in syscall path:**
-- Issue: Process cloned instead of borrowed in syscall access
-- Files: `kernel/src/syscall/access.rs` line 26
-- Why: Convenience during initial implementation
-- Impact: Performance overhead on every syscall
-- Fix approach: Refactor to use reference instead of clone
+**JIT Stack Size Hardcoding:**
+- Issue: ARM64 JIT uses fixed 512-byte stack for all programs
+- File: `kernel/crates/kernel_bpf/src/execution/jit_aarch64.rs` (line 634)
+- Why: Simplified implementation
+- Impact: Stack overflow for programs with deep call stacks
+- Fix approach: Compute stack size from program analysis
+
+**Edition 2024 in Cargo.toml:**
+- Issue: Edition "2024" specified but doesn't exist (current is 2021)
+- Files: `Cargo.toml`, `kernel/Cargo.toml`
+- Why: Likely typo or forward-looking
+- Impact: Build failure on standard toolchains
+- Fix approach: Change to `edition = "2021"`
 
 ## Known Bugs
 
-**Page fault handler infinite loop:**
-- Symptoms: Kernel hangs on page fault instead of terminating process
-- Trigger: Any page fault in userspace
-- Files: `kernel/src/arch/idt.rs` lines 230, 271
-- Workaround: None (kernel hangs)
-- Root cause: Signal handling not implemented, FIXME comments present
-- Fix: Implement SIGSEGV delivery or process termination
+**VFS Node Reuse Not Implemented:**
+- Symptoms: Repeated file opens create new VfsNodes
+- Trigger: Any file access pattern
+- Files: `kernel/crates/kernel_vfs/src/vfs/mod.rs` (line 89)
+- Workaround: None (performance degradation only)
+- Root cause: FIXME comment indicates known gap
 
-**Race condition in subscription updates:**
-- Symptoms: Not observed yet (commented as potential issue)
-- Trigger: Unknown
-- Files: Not pinpointed
-- Root cause: Multiple RwLocks in process structure could contend
+**Mount Point Validation Missing:**
+- Symptoms: Can mount filesystem at non-directory paths
+- Trigger: `vfs.mount("/file", fs)`
+- File: `kernel/crates/kernel_vfs/src/vfs/mod.rs` (line 57)
+- Workaround: None
+- Root cause: TODO comment indicates unimplemented check
 
 ## Security Considerations
 
-**Minimal userspace pointer validation:**
-- Risk: Syscalls accept userspace pointers with limited bounds checking
-- Files: `kernel/src/syscall/mod.rs` lines 19-24, 94, 102, 110, 125
-- Current mitigation: Basic null checks
-- Recommendations: Implement comprehensive bounds checking, consider SMAP/SMEP equivalents
+**Syscall Pointer Validation:**
+- Risk: User-provided pointers passed to unsafe blocks without validation
+- Files: `kernel/src/syscall/bpf.rs` (multiple locations)
+- Current mitigation: Basic null check only (`if attr_ptr == 0`)
+- Recommendations:
+  - Add address space verification (user vs kernel)
+  - Add alignment validation
+  - Add bounds checking on data lengths
 
-**Unsafe code without full documentation:**
-- Risk: Some unsafe blocks lack comprehensive safety comments
-- Files: `kernel/crates/kernel_vfs/src/path/mod.rs` line 17, `kernel/src/arch/idt.rs` lines 78-81
-- Current mitigation: Code review
-- Recommendations: Add safety comments to all unsafe blocks per CONTRIBUTING.md requirements
+**Missing Safety Comments:**
+- Risk: 70+ files with unsafe blocks lack SAFETY documentation
+- Files: Throughout `kernel/src/`, especially `syscall/`, `arch/`
+- Current mitigation: None
+- Recommendations: Add SAFETY comments documenting invariants
 
 ## Performance Bottlenecks
 
-**VFS path lookup:**
-- Problem: File systems stored in BTreeMap
-- Files: `kernel/crates/kernel_vfs/src/vfs/mod.rs` line 23
-- Measurement: Not profiled
-- Cause: BTreeMap less efficient than trie for path lookups
-- Improvement path: Consider trie data structure for mount points
+**Linear Memory Search:**
+- Problem: Physical frame allocator does linear scan
+- File: `kernel/crates/kernel_physical_memory/src/lib.rs` (lines 73-80)
+- Measurement: O(n) per allocation where n = number of regions
+- Cause: Simple implementation without free list
+- Improvement path: Add buddy allocator or bitmap-based tracking
 
-**Memory mapping inefficiency:**
-- Problem: Only 4KiB frames used for memory mapping
-- Files: `kernel/src/syscall/access/mem.rs` line 49
-- Measurement: Not profiled
-- Cause: 2MiB and 1GiB frame support not implemented
-- Improvement path: Add huge page support for large allocations
+**BTreeMap for VFS Paths:**
+- Problem: Mount point lookup uses BTreeMap
+- File: `kernel/crates/kernel_vfs/src/vfs/mod.rs` (line 23)
+- Measurement: O(log n) lookups on every file operation
+- Cause: Simple implementation
+- Improvement path: Trie-based mount point tracking
 
 ## Fragile Areas
 
-**Interrupt descriptor table (IDT):**
-- Why fragile: Complex exception handlers with multiple code paths
-- Files: `kernel/src/arch/idt.rs` (419 lines)
-- Common failures: Page fault handling incomplete, infinite loops
-- Safe modification: Add comprehensive tests before changes
-- Test coverage: Not unit testable (bare-metal)
+**Page Fault Handler:**
+- File: `kernel/src/arch/idt.rs` (lines 240-290)
+- Why fragile: 5 TODOs in critical exception handling
+- Common failures: Missing lazy allocation, nested page faults
+- Safe modification: Add extensive testing before changes
+- Test coverage: No automated tests (bare-metal kernel)
 
-**BPF verifier:**
-- Why fragile: Complex static analysis with many edge cases
-- Files: `kernel/crates/kernel_bpf/src/verifier/core.rs` (799 lines)
-- Common failures: Missed edge cases in control flow analysis
-- Safe modification: Add test cases for each verification rule
-- Test coverage: Has tests but not comprehensive
-
-**Process creation:**
-- Why fragile: Multiple subsystem interactions (memory, VFS, ELF loader)
-- Files: `kernel/src/mcore/mtask/process/mod.rs` (395 lines)
-- Common failures: Resource cleanup on failure
-- Safe modification: Add error handling for each step
-- Test coverage: Not unit testable (bare-metal)
+**BPF Syscall Handler:**
+- File: `kernel/src/syscall/bpf.rs`
+- Why fragile: Multiple unsafe blocks, hardcoded assumptions
+- Common failures: Invalid pointer access, size mismatches
+- Safe modification: Add input validation layer
+- Test coverage: No unit tests currently
 
 ## Scaling Limits
 
-**Physical memory manager:**
-- Current capacity: Depends on available RAM
-- Limit: Linear search for free frames across regions
-- Files: `kernel/crates/kernel_physical_memory/src/lib.rs` line 130
-- Symptoms at limit: Slow allocation with many regions
-- Scaling path: Implement region boundary crossing for better utilization
+**Static Memory Pool (Embedded Profile):**
+- Current capacity: 64KB fixed pool
+- Limit: ~100-200 BPF programs depending on size
+- Symptoms at limit: Allocation failures
+- Scaling path: Increase pool size or switch to cloud profile
+
+**BPF Instruction Limits:**
+- Cloud: 1,000,000 instructions (soft)
+- Embedded: 100,000 instructions (hard)
+- Symptoms at limit: Verification failure
+- Scaling path: Profile selection at compile time
 
 ## Dependencies at Risk
 
-**mkfs-ext2 (git dependency):**
-- Risk: External git dependency from `https://github.com/tsatke/mkfs`
-- Files: `Cargo.toml` lines 75-76
-- Impact: Build breaks if repository unavailable
-- Migration plan: Wait for crates.io release or fork
+**Alpha/RC Dependencies:**
+- `zerocopy = "0.9.0-alpha.0"` - Alpha version
+- `sha3 = "0.11.0-rc.3"` - Release candidate
+- Risk: API changes, bugs, security issues
+- Migration plan: Update to stable versions when released
+
+**Git Dependencies:**
+- `mkfs-ext2 = { git = ... }` - Not versioned
+- `mkfs-filesystem = { git = ... }` - Not versioned
+- Risk: Breaking changes without warning
+- Migration plan: Pin to specific commits or use releases
 
 ## Missing Critical Features
 
-**ext2 write support:**
-- Problem: Filesystem is read-only
-- Files: `kernel/src/file/ext2.rs` line 102 (`todo!()`)
-- Current workaround: Pre-populate disk image at build time
-- Blocks: Any userspace file modification
-- Implementation complexity: Medium (ext2 write support well-documented)
+**BTF Parsing:**
+- Problem: Binary Type Format support not implemented
+- File: `kernel/crates/kernel_bpf/src/loader/mod.rs` (line 152)
+- Current workaround: Manual type definitions
+- Blocks: Rich debugging, CO-RE (Compile Once Run Everywhere)
+- Implementation complexity: Medium-High
 
-**Signal handling:**
-- Problem: No POSIX signal delivery mechanism
-- Files: `kernel/src/arch/idt.rs` lines 230, 271 (FIXME comments)
-- Current workaround: Kernel hangs on fatal errors
-- Blocks: Proper process termination, job control
-- Implementation complexity: High (requires userspace stack manipulation)
-
-**Symlink support:**
-- Problem: Symbolic links not implemented in ext2 or VFS
-- Files: `kernel/src/file/ext2.rs` line 148 (`todo!()`)
-- Current workaround: None
-- Blocks: Standard Unix filesystem operations
-- Implementation complexity: Low-Medium
-
-**Demand paging:**
-- Problem: No lazy page allocation
-- Files: `kernel/src/arch/aarch64/exceptions.rs` line 178, `kernel/src/arch/riscv64/trap.rs` line 109
-- Current workaround: Allocate all pages upfront
+**Demand Paging (aarch64):**
+- Problem: Page fault handling incomplete
+- File: `kernel/src/arch/aarch64/exceptions.rs` (line 178)
+- Current workaround: All memory pre-allocated
 - Blocks: Efficient memory usage
 - Implementation complexity: Medium
 
-**Copy-on-Write (COW):**
-- Problem: Fork would require full memory copy
-- Files: `kernel/src/arch/aarch64/exceptions.rs` line 199, `kernel/src/arch/riscv64/trap.rs` line 109
-- Current workaround: Not applicable (no fork yet)
-- Blocks: Efficient process forking
-- Implementation complexity: Medium-High
-
 ## Test Coverage Gaps
 
-**Kernel core (bare-metal):**
-- What's not tested: Main kernel code (`kernel/src/`)
-- Risk: Regressions in boot, interrupt handling, syscalls
+**BPF Syscall Handler:**
+- What's not tested: `kernel/src/syscall/bpf.rs`
+- Risk: Security vulnerabilities, data corruption
 - Priority: High
-- Difficulty to test: Requires custom test harness or QEMU-based testing
+- Difficulty: Requires kernel testing framework
 
-**Platform-specific code:**
-- What's not tested: AArch64 and RISC-V implementations
-- Files: `kernel/src/arch/aarch64/`, `kernel/src/arch/riscv64/`
-- Risk: Broken builds on non-x86 platforms
+**Unsafe Pointer Operations:**
+- What's not tested: Pointer validation in syscall handlers
+- Risk: Memory safety violations
+- Priority: High
+- Difficulty: Need to test invalid inputs safely
+
+**RISC-V Platform:**
+- What's not tested: `kernel/src/arch/riscv64/`
+- Risk: Runtime failures on RISC-V hardware
 - Priority: Medium
-- Difficulty to test: Requires cross-compilation and emulation
+- Difficulty: Requires RISC-V emulator/hardware
 
-**Syscall handlers:**
-- What's not tested: Syscall implementations
-- Files: `kernel/src/syscall/`
-- Risk: ABI breakage, security vulnerabilities
-- Priority: High
-- Difficulty to test: Requires userspace test programs
+## Platform Implementation Gaps
 
-## TODO/FIXME Summary
+**RISC-V (Incomplete):**
+- `kernel/src/main_riscv.rs` - Only prints TODO messages
+- `kernel/src/arch/riscv64/interrupts.rs` - PLIC handling not implemented
+- `kernel/src/arch/riscv64/paging.rs` - Kernel page tables not set up
+- Impact: RISC-V builds but doesn't function
 
-**High Priority (Critical Path):**
-- Memory deallocation: 3+ `todo!()` in process/mem.rs
-- Signal handling: 2 FIXME in idt.rs
-- ext2 write: `todo!()` in ext2.rs
-
-**Medium Priority (Functionality):**
-- Symlinks, absolute paths, parent traversal in ext2.rs
-- Huge page support in memory mapping
-- Device tree parsing improvements
-
-**Low Priority (Optimization):**
-- BTreeMap to trie for VFS
-- Remove unnecessary Arc clones
-- Cross-region memory allocation
+**AArch64 (Partial):**
+- `kernel/src/arch/aarch64/exceptions.rs` - Demand paging, COW not implemented
+- Impact: Full memory pre-allocation required
 
 ---
 

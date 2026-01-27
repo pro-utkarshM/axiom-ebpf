@@ -5,98 +5,89 @@
 ## Languages
 
 **Primary:**
-- Rust (Edition 2024) - All kernel and userspace code - `Cargo.toml`, `kernel/Cargo.toml`
+- Rust (Nightly, Edition 2024) - All kernel and userspace code
 
 **Secondary:**
-- Assembly (x86_64, AArch64, RISC-V) - Architecture-specific bootup - `kernel/src/arch/aarch64/boot.S`
+- C - BPF example programs (`examples/bpf/hello.bpf.c`)
 
 ## Runtime
 
 **Environment:**
-- Bare-metal x86_64 - Primary target: `x86_64-unknown-none` - `.cargo/config.toml`
-- Bare-metal AArch64 - `aarch64-unknown-none` - `.cargo/config.toml`
-- Bare-metal RISC-V 64-bit - Configured in `kernel/demos/riscv/`
-- Rust Nightly toolchain required - `rust-toolchain.toml`
+- Bare-metal kernel (no_std) - No OS runtime
+- Target architectures: x86_64, aarch64 (Raspberry Pi 5), riscv64 (WIP)
+- Requires Rust nightly toolchain
 
 **Package Manager:**
-- Cargo (workspace-based)
-- Lockfile: `Cargo.lock` present
-- Workspace members defined in `Cargo.toml` lines 16-36
+- Cargo with Rust Workspace
+- Lockfile: `Cargo.lock` present (pinned dependencies)
+
+**Toolchain Configuration:**
+- `rust-toolchain.toml` - Nightly channel with components: rustfmt, clippy, llvm-tools-preview, rust-src, miri
 
 ## Frameworks
 
 **Core:**
 - None (vanilla bare-metal Rust kernel)
 
-**Bootloader:**
-- Limine v9.x - Multi-protocol bootloader (BIOS + UEFI) - cloned during build from `https://github.com/limine-bootloader/limine.git --branch=v9.x-binary`
-
 **Testing:**
-- Rust standard `#[test]` with cargo test
-- Miri - Undefined behavior detection - `rust-toolchain.toml`
-- Clippy - Static analysis - `rust-toolchain.toml`
+- Rust built-in test framework - Unit tests via `#[test]`
+- Criterion 0.5 - Benchmarking (`kernel/crates/kernel_bpf/benches/`)
+- Miri - Undefined behavior detection
 
 **Build/Dev:**
-- Custom build.rs - ISO/disk image builder - `build.rs`
-- QEMU - Emulation for testing - `README.md`
-- OVMF - UEFI firmware for x86_64 emulation - `build.rs`
+- Cargo - Build system
+- Custom `build.rs` - ISO/disk image creation
+- Limine v9.x - Bootloader
+- OVMF 0.2.3 - UEFI firmware for QEMU (x86_64)
 
 ## Key Dependencies
 
 **Critical:**
-- `limine` (0.5) - Bootloader protocol - `Cargo.toml`
-- `x86_64` (0.15) - x86-64 CPU abstractions - `Cargo.toml`
-- `virtio-drivers` (0.12) - VirtIO device drivers - `Cargo.toml`
-- `spin` (0.10) - Spinlock synchronization (no_std) - `Cargo.toml`
-- `thiserror` (2.0) - Error handling - `Cargo.toml`
+- `spin = "0.10"` - Spinlock synchronization primitive - `Cargo.toml`
+- `x86_64 = "0.15"` - x86_64 architecture crate - `Cargo.toml`
+- `aarch64-cpu = "9.4"` - ARM64 CPU utilities - `Cargo.toml`
+- `limine = "0.5"` - Bootloader protocol - `Cargo.toml`
+- `linked_list_allocator = "0.10"` - Memory allocator - `Cargo.toml`
 
 **Infrastructure:**
-- `linked_list_allocator` (0.10) - Heap allocator - `Cargo.toml`
-- `acpi` (5.2) - ACPI table parsing - `Cargo.toml`
-- `x2apic` (0.5) - x2APIC controller (x86_64) - `kernel/Cargo.toml`
-- `uart_16550` (0.4) - UART driver - `Cargo.toml`
-- `elf` (0.7) - ELF binary parsing - `Cargo.toml`
-- `fdt` (0.1.5) - Flattened Device Tree (ARM) - `Cargo.toml`
+- `virtio-drivers = "0.12"` - VirtIO device drivers - `Cargo.toml`
+- `acpi = "5.2"` - ACPI table parsing (x86_64) - `Cargo.toml`
+- `ext2 = "0.4"` - Ext2 filesystem - `Cargo.toml`
+- `zerocopy = "0.9.0-alpha.0"` - Safe zero-copy memory layouts - `Cargo.toml`
+- `volatile = "0.6"` - Safe volatile memory access - `Cargo.toml`
 
-**Architecture Support:**
-- `riscv` (0.11) - RISC-V CPU support - `Cargo.toml`
-- `aarch64-cpu` (9.4) - ARM64 CPU support - `Cargo.toml`
-- `raw-cpuid` (11) - CPUID instruction wrapper - `Cargo.toml`
-
-**Git Dependencies:**
-- `mkfs-ext2` - Custom ext2 filesystem builder - `https://github.com/tsatke/mkfs`
-- `mkfs-filesystem` - Generic filesystem builder - `https://github.com/tsatke/mkfs`
+**Development:**
+- `clap = "4.5"` - CLI argument parsing (runner) - `Cargo.toml`
+- `addr2line = "0.25"` - Debug symbol resolution - `Cargo.toml`
 
 ## Configuration
 
 **Environment:**
-- No runtime environment variables required
-- Build-time env vars: `CARGO_BIN_FILE_KERNEL_kernel`, `OUT_DIR`, `CARGO_MANIFEST_DIR` - `build.rs`
+- No environment variables required
+- Configuration via Cargo features and linker scripts
 
 **Build:**
-- `.cargo/config.toml` - Cargo build settings with architecture-specific rustflags
-- `rust-toolchain.toml` - Nightly toolchain with components: rustfmt, clippy, llvm-tools-preview, rust-src, miri
-- `rustfmt.toml` - Code formatting configuration
+- `Cargo.toml` - Workspace configuration
+- `kernel/Cargo.toml` - Kernel build config
+- `rust-toolchain.toml` - Rust version
 - `limine.conf` - Bootloader configuration
+- `kernel/linker-x86_64.ld`, `kernel/linker-aarch64.ld` - Linker scripts
 
-**Feature-Gated Configuration:**
-- BPF profiles selected at compile-time - `kernel/crates/kernel_bpf/Cargo.toml`
-  - `--features cloud-profile` - Servers, VMs, containers
-  - `--features embedded-profile` - RPi5, IoT, real-time systems
-- Profiles are mutually exclusive via compile-time checks - `kernel/crates/kernel_bpf/src/lib.rs`
+**Feature Flags:**
+- `cloud-profile` - Cloud/server deployment (elastic memory, JIT, throughput scheduling)
+- `embedded-profile` - Embedded/IoT deployment (static 64KB pool, no JIT, deadline scheduling)
 
 ## Platform Requirements
 
 **Development:**
-- Linux (any distro with toolchain support)
-- Required tools: `xorriso`, `qemu-system-x86_64`, `e2fsprogs` (mke2fs)
-- Rust nightly toolchain
+- Linux/macOS (any platform with Rust nightly toolchain)
+- QEMU for testing (automatically invoked)
+- No Docker required
 
 **Production:**
-- Bare-metal x86_64 with UEFI or BIOS
-- Bare-metal AArch64 (Raspberry Pi 5 supported)
-- Bare-metal RISC-V 64-bit (experimental)
-- Boots from ISO (BIOS/UEFI) or disk image
+- x86_64: UEFI-compatible systems, VirtIO devices
+- aarch64: Raspberry Pi 5 with custom bootloader
+- riscv64: RISC-V 64-bit systems (implementation incomplete)
 
 ---
 

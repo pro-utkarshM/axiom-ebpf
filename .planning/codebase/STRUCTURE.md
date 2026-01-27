@@ -6,200 +6,180 @@
 
 ```
 axiom-ebpf/
-├── .cargo/              # Cargo configuration
-├── .github/             # GitHub Actions workflows
-│   └── workflows/       # CI/CD definitions
-├── docs/                # Design documentation
-├── kernel/              # Core OS kernel
-│   ├── crates/          # Modular kernel subsystems
-│   │   ├── kernel_abi/
-│   │   ├── kernel_bpf/
-│   │   ├── kernel_devfs/
-│   │   ├── kernel_device/
-│   │   ├── kernel_elfloader/
-│   │   ├── kernel_memapi/
-│   │   ├── kernel_pci/
-│   │   ├── kernel_physical_memory/
-│   │   ├── kernel_syscall/
-│   │   ├── kernel_vfs/
-│   │   └── kernel_virtual_memory/
-│   ├── demos/           # Architecture demos (RISC-V)
-│   └── src/             # Main kernel source
-│       ├── arch/        # Architecture-specific code
-│       ├── driver/      # Device drivers
-│       ├── file/        # Filesystem layer
-│       ├── mcore/       # Multi-core & scheduling
-│       ├── mem/         # Memory management
-│       └── syscall/     # Syscall handlers
-├── scripts/             # Build and deploy scripts
-├── src/                 # Build orchestration (QEMU launcher)
-├── userspace/           # User-mode programs
-│   ├── file_structure/  # Filesystem image builder
-│   ├── init/            # Init process (PID 1)
-│   └── minilib/         # Userspace syscall library
-├── Cargo.toml           # Workspace definition
-├── Cargo.lock           # Dependency lock
-├── build.rs             # ISO/disk image builder
-├── limine.conf          # Bootloader configuration
-└── rust-toolchain.toml  # Nightly toolchain
+├── src/                    # Build orchestrator (runner)
+├── kernel/                 # Kernel build target
+│   ├── src/               # Main kernel source
+│   ├── crates/            # Subsystem crates (kernel_*)
+│   ├── demos/             # Demo programs
+│   └── platform/          # Platform configs (RPi5)
+├── userspace/             # Userspace programs
+├── examples/              # Example programs
+├── docs/                  # Documentation
+├── scripts/               # Build/deploy scripts
+├── .planning/             # Project planning (GSD)
+├── .github/               # CI/CD workflows
+├── Cargo.toml             # Root workspace config
+├── build.rs               # ISO/disk image creation
+├── rust-toolchain.toml    # Rust version config
+└── limine.conf            # Bootloader config
 ```
 
 ## Directory Purposes
 
-**kernel/crates/kernel_abi/**
-- Purpose: Kernel ↔ userspace ABI definitions
-- Contains: errno, fcntl, mman, limits, syscall numbers
-- Key files: `src/errno.rs`, `src/syscall.rs`
+**src/**
+- Purpose: Build orchestrator that invokes cargo and boots QEMU
+- Contains: `main.rs` (CLI runner), `lib.rs` (kernel library)
+- Key files: `main.rs` - Entry point for `cargo run`
+- Subdirectories: None
+
+**kernel/src/**
+- Purpose: Main kernel source code
+- Contains: Architecture, memory, process, filesystem, drivers, BPF integration
+- Key files: `main.rs` (kernel entry), `lib.rs` (init)
+- Subdirectories:
+  - `arch/` - Architecture-specific code (x86_64, aarch64, riscv64)
+  - `mem/` - Memory management
+  - `mcore/` - Process/scheduler (mtask/)
+  - `file/` - Filesystem (ext2, devfs)
+  - `bpf/` - BPF manager (kernel-side)
+  - `syscall/` - Syscall dispatcher
+  - `driver/` - Device drivers (virtio, pci)
+
+**kernel/crates/**
+- Purpose: Testable subsystem crates
+- Contains: 11 crates with `kernel_` prefix
+- Key crates:
+  - `kernel_bpf/` - BPF subsystem (verifier, execution, maps)
+  - `kernel_abi/` - Syscall ABI definitions
+  - `kernel_vfs/` - VFS abstraction
+  - `kernel_syscall/` - Syscall implementations
+  - `kernel_elfloader/` - ELF binary loader
 
 **kernel/crates/kernel_bpf/**
-- Purpose: eBPF subsystem (core research area)
-- Contains: Bytecode, verifier, execution engines, maps (Array, HashMap), scheduler
-- Key files: `src/lib.rs`, `src/bytecode/insn.rs`, `src/verifier/core.rs`, `src/execution/interpreter.rs`
-- Subdirectories: `bytecode/`, `verifier/`, `execution/`, `maps/`, `scheduler/`, `profile/`
-- Helpers: `kernel/src/bpf/helpers.rs`
+- Purpose: Core BPF subsystem (self-contained)
+- Contains: Bytecode, verifier, execution, maps, loader, scheduler
+- Key files:
+  - `src/lib.rs` - Module root, profile config
+  - `src/bytecode/` - BPF instruction set
+  - `src/verifier/` - Static safety verification
+  - `src/execution/` - Interpreter and JIT
+  - `src/maps/` - Map implementations
+  - `benches/` - Criterion benchmarks
 
-**kernel/crates/kernel_vfs/**
-- Purpose: Virtual filesystem abstraction
-- Contains: Path handling, mount management, node abstractions
-- Key files: `src/lib.rs`, `src/vfs/mod.rs`, `src/path/mod.rs`
+**userspace/**
+- Purpose: Userspace programs
+- Contains: Init process, CLI tools, syscall wrappers
+- Key subdirectories:
+  - `init/` - PID 1 root process
+  - `rk_cli/` - BPF deployment CLI
+  - `rk_bridge/` - Ring buffer to ROS2 bridge
+  - `minilib/` - Syscall wrappers
+  - `bpf_loader/` - BPF program loader
 
-**kernel/crates/kernel_physical_memory/**
-- Purpose: Physical memory frame allocator
-- Contains: Sparse region-based frame tracking
-- Key files: `src/lib.rs`, `src/region.rs`
+**examples/**
+- Purpose: Example programs
+- Contains: BPF example programs
+- Key files: `bpf/hello.bpf.c`, `bpf/README.md`
 
-**kernel/src/arch/**
-- Purpose: Architecture-specific implementations
-- Contains: x86_64, AArch64, RISC-V code
-- Key files: `traits.rs` (interface), `x86_64.rs`, `idt.rs`, `gdt.rs`
-- Subdirectories: `aarch64/` (full impl), `riscv64/` (experimental)
+**docs/**
+- Purpose: Project documentation
+- Contains: Proposal, implementation, platform docs
+- Key files: `proposal.md`, `implementation.md`, `tasks.md`, `howto.md`
 
-**kernel/src/mcore/**
-- Purpose: Multi-core support and task management
-- Contains: Process structures, scheduler, context switching
-- Key files: `mod.rs`, `context.rs`, `lapic.rs`
-- Subdirectories: `mtask/` (process/, task/, scheduler/)
-
-**kernel/src/driver/**
-- Purpose: Device drivers
-- Contains: PCI, VirtIO, block device abstractions
-- Key files: `mod.rs`, `pci.rs`, `block.rs`, `raw.rs`
-- Subdirectories: `virtio/` (block, gpu, hal)
-
-**kernel/src/file/**
-- Purpose: Filesystem layer
-- Contains: VFS wrapper, ext2, devfs
-- Key files: `mod.rs`, `ext2.rs`, `devfs.rs`
-
-**userspace/init/**
-- Purpose: Init process (first userspace program)
-- Contains: Minimal init that prints greeting
-- Key files: `src/main.rs`
-
-**userspace/minilib/**
-- Purpose: Userspace standard library
-- Contains: Syscall wrappers
-- Key files: `src/lib.rs`
+**.github/**
+- Purpose: CI/CD configuration
+- Contains: Workflows, Claude guidance
+- Key files: `workflows/build.yml`, `workflows/bpf-profiles.yml`, `CLAUDE.md`
 
 ## Key File Locations
 
 **Entry Points:**
-- `src/main.rs` - Build orchestration, QEMU launcher
-- `kernel/src/main.rs` - Kernel entry point (`kernel_main`)
-- `kernel/src/lib.rs` - Kernel initialization (`kernel::init()`)
-- `userspace/init/src/main.rs` - Userspace init (`_start`)
+- `src/main.rs` - Build orchestrator entry
+- `kernel/src/main.rs` - Kernel entry (`kernel_main`)
+- `userspace/init/src/main.rs` - Init process entry
 
 **Configuration:**
-- `Cargo.toml` - Workspace definition
-- `.cargo/config.toml` - Build targets and rustflags
-- `rust-toolchain.toml` - Nightly toolchain
-- `rustfmt.toml` - Code formatting
+- `Cargo.toml` - Workspace configuration
+- `kernel/Cargo.toml` - Kernel dependencies
+- `rust-toolchain.toml` - Rust nightly + components
 - `limine.conf` - Bootloader configuration
+- `.rustfmt.toml` - Code formatting
 
 **Core Logic:**
-- `kernel/src/mcore/mtask/process/mod.rs` - Process management
-- `kernel/src/mcore/mtask/scheduler/global.rs` - Task scheduling
-- `kernel/src/mem/heap.rs` - Heap allocator
-- `kernel/src/syscall/mod.rs` - Syscall dispatch
-- `kernel/crates/kernel_bpf/src/execution/interpreter.rs` - BPF interpreter
+- `kernel/src/syscall/mod.rs` - Syscall dispatcher
+- `kernel/src/syscall/bpf.rs` - BPF syscall handler
+- `kernel/src/bpf/mod.rs` - BPF manager
+- `kernel/crates/kernel_bpf/src/verifier/` - BPF verifier
+- `kernel/crates/kernel_bpf/src/execution/` - BPF execution
 
 **Testing:**
-- `kernel/crates/kernel_bpf/tests/` - BPF profile and semantic tests
-- `.github/workflows/build.yml` - CI workflow
-- `.github/workflows/bpf-profiles.yml` - BPF-specific CI
+- `kernel/crates/*/src/*.rs` - Unit tests in `#[cfg(test)]` modules
+- `kernel/crates/kernel_bpf/benches/` - Criterion benchmarks
+- `kernel/crates/kernel_bpf/tests/` - Integration tests
 
 **Documentation:**
-- `README.md` - User-facing documentation
-- `CONTRIBUTING.md` - Contributor guidelines
-- `docs/` - Design proposals and architecture docs
+- `README.md` - Project overview
+- `docs/proposal.md` - Vision and roadmap
+- `.github/CLAUDE.md` - Claude Code guidance
 
 ## Naming Conventions
 
 **Files:**
-- snake_case.rs - Rust source files
-- UPPERCASE.md - Important project files (README, CONTRIBUTING)
-- kebab-case.sh - Shell scripts
-- *.toml - Configuration files
+- `snake_case.rs` - Rust source files
+- `mod.rs` - Module entry points
+- `lib.rs` - Crate roots
+- `main.rs` - Binary entry points
 
 **Directories:**
-- snake_case - Rust module directories
-- kernel_ prefix - Kernel crate names
-- Plural for collections (crates/, scripts/, docs/)
+- `snake_case` - All directories
+- `kernel_` prefix - Subsystem crates
+- Plural for collections: `crates/`, `demos/`, `examples/`
 
 **Special Patterns:**
-- mod.rs - Module container
-- lib.rs - Crate root
-- main.rs - Binary entry point
-- tests/ - Integration tests directory
-- linker-*.ld - Architecture-specific linker scripts
+- `*_new.rs` - Alternative implementations
+- `*.ld` - Linker scripts
+- `*.toml` - Configuration files
 
 ## Where to Add New Code
 
-**New Kernel Subsystem Crate:**
-- Implementation: `kernel/crates/kernel_<name>/src/`
-- Add to workspace: `Cargo.toml` members array
-- Add to kernel deps: `kernel/Cargo.toml`
-
-**New Architecture Support:**
-- Implementation: `kernel/src/arch/<arch>/`
-- Add trait impl in: `kernel/src/arch/traits.rs`
-- Linker script: `kernel/src/linker-<arch>.ld`
-
-**New Device Driver:**
-- Implementation: `kernel/src/driver/<driver>.rs`
-- VirtIO devices: `kernel/src/driver/virtio/<device>.rs`
-- Register in: `kernel/src/driver/mod.rs`
+**New BPF Feature:**
+- Primary code: `kernel/crates/kernel_bpf/src/`
+- Tests: Same file in `#[cfg(test)]` module
+- Benchmarks: `kernel/crates/kernel_bpf/benches/`
 
 **New Syscall:**
 - Definition: `kernel/crates/kernel_abi/src/syscall.rs`
-- Handler: `kernel/src/syscall/`
-- Access impl: `kernel/src/syscall/access/`
+- Handler: `kernel/crates/kernel_syscall/src/`
+- BPF-specific: `kernel/src/syscall/bpf.rs`
 
-**New BPF Feature:**
-- Implementation: `kernel/crates/kernel_bpf/src/<module>/`
-- Tests: `kernel/crates/kernel_bpf/tests/`
-- Profile constraints: `kernel/crates/kernel_bpf/src/profile/`
+**New Architecture:**
+- Implementation: `kernel/src/arch/{arch_name}/`
+- Entry: `kernel/src/main_{arch}.rs`
+- Platform config: `kernel/platform/{platform}/`
 
-**New Userspace Program:**
-- Implementation: `userspace/<program>/src/main.rs`
-- Add Cargo.toml: `userspace/<program>/Cargo.toml`
-- Add to workspace: Root `Cargo.toml`
+**New Driver:**
+- Implementation: `kernel/src/driver/`
+- VirtIO: `kernel/src/driver/virtio/`
+
+**Utilities:**
+- Shared helpers: `kernel/crates/kernel_*/src/`
+- Userspace: `userspace/minilib/`
 
 ## Special Directories
 
-**kernel/crates/**
-- Purpose: Modular kernel subsystems (testable on host)
-- Source: Manually created, part of workspace
+**.planning/**
+- Purpose: GSD project planning documents
+- Source: Generated by `/gsd:map-codebase`
 - Committed: Yes
 
 **target/**
 - Purpose: Build artifacts
-- Source: Generated by cargo build
+- Source: Cargo build output
 - Committed: No (in .gitignore)
 
-**.planning/**
-- Purpose: Project planning and codebase documentation
-- Source: Generated by GSD tooling
+**kernel/platform/rpi5/**
+- Purpose: Raspberry Pi 5 platform configuration
+- Contains: Boot config, device tree, memory map
 - Committed: Yes
 
 ---

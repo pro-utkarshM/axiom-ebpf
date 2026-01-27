@@ -5,171 +5,145 @@
 ## APIs & External Services
 
 **Payment Processing:**
-- Not applicable (bare-metal OS kernel)
+- Not applicable (bare-metal kernel)
 
 **Email/SMS:**
-- Not applicable (bare-metal OS kernel)
+- Not applicable
 
 **External APIs:**
-- Not applicable (no network stack implemented)
+- Not applicable - Bare-metal kernel with no external service dependencies
 
 ## Data Storage
 
 **Databases:**
-- Not applicable (bare-metal OS kernel)
+- Not applicable (no database clients)
 
 **File Storage:**
-- ext2 Filesystem - Primary storage format
-  - Read support: `kernel/src/file/ext2.rs`
-  - Write support: Not implemented (todo!)
-  - Builder: `mkfs-ext2` crate from `https://github.com/tsatke/mkfs` - `Cargo.toml`
-  - Disk image: Created via `mke2fs` external command - `build.rs`
+- Ext2 filesystem - Primary filesystem implementation - `kernel/src/file/ext2.rs`
+- DevFS - Device filesystem - `kernel/src/file/devfs.rs`
+- VFS abstraction - `kernel/crates/kernel_vfs/`
 
 **Caching:**
-- Not applicable (no caching layer)
+- None (all in-memory, no persistent cache)
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Not applicable (no authentication system)
+- Not applicable
 
 **OAuth Integrations:**
-- Not applicable
+- None
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- Serial console logging via `uart_16550` - `kernel/src/serial.rs`
-- Panic handler writes to serial - `kernel/src/main.rs`
+- Serial console output - `kernel/src/serial.rs`
+- Backtrace support - `kernel/src/backtrace.rs`
 
 **Analytics:**
 - Not applicable
 
 **Logs:**
-- `log` crate (0.4) - Logging abstraction - `Cargo.toml`
-- Output to serial console (COM1: 0x3F8 on x86_64)
+- Kernel log via `log` crate - `kernel/src/log.rs`
+- Serial console output to UART
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- GitHub - Source control
-- Repository: `axiom-ebpf`
+- Bare-metal deployment or QEMU emulation
+- ISO image generation via `build.rs`
 
 **CI Pipeline:**
-- GitHub Actions - `.github/workflows/build.yml`
-- Workflows:
-  - `lint` - rustfmt and clippy checks
-  - `test` - cargo test (debug + release matrix)
-  - `miri` - Undefined behavior detection per-crate
-  - `miri-kernel-bpf` - BPF profile-specific Miri tests
-  - `build` - Full release build with ISO artifact
-- Schedule: Every push + twice daily (cron: `0 5,17 * * *`)
-
-**BPF Profile CI:**
-- Dedicated workflow: `.github/workflows/bpf-profiles.yml`
-- Tests both cloud and embedded profiles separately
-- Semantic consistency verification
+- GitHub Actions - `.github/workflows/build.yml`, `.github/workflows/bpf-profiles.yml`
+- Jobs: lint, test, miri, build
+- Schedule: On push + twice daily (5am and 5pm UTC)
 
 ## Environment Configuration
 
 **Development:**
-- Required env vars: None (all configuration in Cargo.toml and config files)
-- Secrets location: Not applicable
-- Tools: `xorriso`, `qemu-system`, `e2fsprogs`
+- Required: Rust nightly toolchain
+- Optional: QEMU for testing
+- No secrets/env vars required
 
 **Staging:**
-- Not applicable (bare-metal deployment)
+- Not applicable (bare-metal)
 
 **Production:**
 - Boot via Limine bootloader
-- Supports BIOS and UEFI boot modes
-- ISO image or direct disk boot
+- ISO image deployment
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- Not applicable
+- None
 
 **Outgoing:**
-- Not applicable
+- None
 
-## Hardware/Device Integrations
+## BPF Subsystem Integration
 
-**VirtIO Drivers:**
-- `virtio-drivers` crate (0.12) - Generic VirtIO device support
-- Block device: `kernel/src/driver/virtio/block.rs`
-- GPU: `kernel/src/driver/virtio/gpu.rs`
-- HAL: `kernel/src/driver/virtio/hal.rs`
+**Core eBPF Components:**
+- Verifier: Streaming verification (50KB peak memory) - `kernel/crates/kernel_bpf/src/verifier/`
+- Interpreter: Complete BPF instruction interpreter - `kernel/crates/kernel_bpf/src/execution/interpreter.rs`
+- JIT Compilers:
+  - x86_64 JIT (full) - `kernel/crates/kernel_bpf/src/execution/jit/`
+  - ARM64 JIT (partial) - `kernel/crates/kernel_bpf/src/execution/jit_aarch64.rs`
 
-**PCI Enumeration:**
-- `kernel_pci` subsystem - `kernel/crates/kernel_pci/`
-- Device discovery and driver binding - `kernel/src/driver/pci.rs`
+**BPF Map Types:**
+1. Array Map - `kernel/crates/kernel_bpf/src/maps/array.rs`
+2. Hash Map - `kernel/crates/kernel_bpf/src/maps/hash.rs`
+3. Ring Buffer - `kernel/crates/kernel_bpf/src/maps/ringbuf.rs`
+4. Time Series Map - `kernel/crates/kernel_bpf/src/maps/timeseries.rs`
+5. Static Pool (embedded) - `kernel/crates/kernel_bpf/src/maps/static_pool.rs`
 
-**Serial/UART:**
-- UART 16550 driver - `uart_16550` crate
-- Serial console at COM1 (0x3F8) - `kernel/src/serial.rs`
+**BPF Syscall Interface:**
+- `sys_bpf` handler - `kernel/src/syscall/bpf.rs`
+- Operations: BPF_MAP_CREATE, BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM, BPF_MAP_DELETE_ELEM, BPF_PROG_LOAD, BPF_PROG_ATTACH
 
-**Platform-Specific:**
-- x86_64: APIC, x2APIC, ACPI, HPET - `kernel/src/apic.rs`, `kernel/src/hpet.rs`
-- AArch64: GIC (interrupt controller), DTB parsing - `kernel/src/arch/aarch64/`
-- Raspberry Pi 5: RP1 UART, GPIO - `kernel/src/arch/aarch64/platform/rpi5/`
+**BPF Helper Functions:**
+- `bpf_ktime_get_ns` - Get kernel time - `kernel/src/bpf/helpers.rs`
+- `bpf_trace_printk` - Print to kernel logs - `kernel/src/bpf/helpers.rs`
+- `bpf_map_lookup_elem` - Map lookup - `kernel/src/bpf/helpers.rs`
+- `bpf_map_update_elem` - Map update - `kernel/src/bpf/helpers.rs`
+- `bpf_map_delete_elem` - Map deletion - `kernel/src/bpf/helpers.rs`
 
-## eBPF Subsystem
+**Attach Points:**
+- Timer events (attach_type=1) - `kernel/src/syscall/mod.rs`
+- Syscall entry (attach_type=2) - `kernel/src/syscall/mod.rs`
+- Planned: GPIO, PWM, IIO, Kprobe, Tracepoint - `kernel/crates/kernel_bpf/src/attach/`
 
-**kernel_bpf** - First-class eBPF kernel subsystem
-- Location: `kernel/crates/kernel_bpf/`
-- Optional feature in kernel: `dep:kernel_bpf` - `kernel/Cargo.toml`
+## Userspace Tools Integration
 
-**Profile-Aware Architecture:**
+**rk-bridge:**
+- eBPF Ring Buffer to ROS2 Bridge - `userspace/rk_bridge/`
+- Dependencies: tokio, serde, libc, clap
+- Optional ROS2 integration via `ros2` feature
 
-| Property | Cloud Profile | Embedded Profile |
-|----------|---------------|------------------|
-| Memory | Elastic (heap) | Static (64KB pool) |
-| Stack | 512 KB | 8 KB |
-| Instructions | 1,000,000 max | 100,000 max |
-| JIT | Available | Erased at compile-time |
-| Scheduling | Throughput | Deadline (EDF) |
-| Map Resize | Available | Erased |
+**rk-cli:**
+- BPF deployment & management CLI - `userspace/rk_cli/`
+- Dependencies: clap, ring (crypto), sha3, walkdir
 
-**eBPF Components:**
-- Bytecode: `kernel/crates/kernel_bpf/src/bytecode/`
-- Verifier: `kernel/crates/kernel_bpf/src/verifier/`
-- Execution: `kernel/crates/kernel_bpf/src/execution/` (Interpreter + JIT)
-- Maps: `kernel/crates/kernel_bpf/src/maps/` (Array, HashMap)
-- Scheduler: `kernel/crates/kernel_bpf/src/scheduler/`
-- Helpers: `kernel/src/bpf/helpers.rs` (ktime, trace_printk, map_lookup/update/delete)
+**Init Process:**
+- PID 1 init - `userspace/init/`
+- Starts BPF subsystem and loads initial programs
 
-**BPF Maps Syscalls (Phase 4):**
-- `BPF_MAP_CREATE` - Create array/hash maps
-- `BPF_MAP_LOOKUP_ELEM` - Read from userspace
-- `BPF_MAP_UPDATE_ELEM` - Write from userspace
-- `BPF_MAP_DELETE_ELEM` - Delete from userspace
-- Helper functions allow BPF programs to access maps directly
+## Profile-Based Deployment
 
-## Boot & Firmware
+**Cloud Profile:**
+- Memory: Elastic heap allocation
+- Stack: 512 KB
+- Instructions: 1,000,000 soft limit
+- JIT: Available
+- Build: `cargo build --no-default-features --features cloud-profile -p kernel_bpf`
 
-**Limine Bootloader:**
-- Protocol: Limine v9.x
-- Configuration: `limine.conf`
-- Cloned during build: `build.rs` line 222
-
-**UEFI Support:**
-- OVMF firmware for x86_64 emulation - `build.rs`
-- `ovmf-prebuilt` crate (0.2.3) - `Cargo.toml`
-
-**ISO Creation:**
-- Tool: `xorriso` (external)
-- Creates hybrid BIOS/UEFI bootable ISO - `build.rs` lines 166-197
-
-## Not Detected
-
-- Web framework (no HTTP server)
-- Database clients (no SQL/NoSQL)
-- Cloud provider SDKs (no AWS/GCP/Azure)
-- Message queues
-- Network stack (no TCP/IP)
+**Embedded Profile (Default):**
+- Memory: Static 64KB pool
+- Stack: 8 KB
+- Instructions: 100,000 hard limit
+- JIT: Erased at compile time
+- Build: `cargo build --no-default-features --features embedded-profile -p kernel_bpf`
 
 ---
 
-*Integration audit: 2026-01-21*
+*Integration audit: 2026-01-27*
 *Update when adding/removing external services*

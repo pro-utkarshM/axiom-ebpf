@@ -5,213 +5,151 @@
 ## Naming Patterns
 
 **Files:**
-- snake_case.rs for all Rust source files
-- mod.rs for module containers
-- lib.rs for crate roots, main.rs for binaries
-- Tests: `tests/*.rs` in dedicated tests directory (not co-located)
+- `snake_case.rs` for all Rust files
+- `mod.rs` for module entry points
+- `lib.rs` for crate roots
+- `*.test.rs` pattern not used (tests in same file)
 
 **Functions:**
-- snake_case for all functions
-- No special prefix for async functions
-- `new()` for constructors, `from_*()` for conversions
-- `try_*()` for fallible operations returning Option/Result
+- `snake_case` for all functions
+- Constructor pattern: `new()`, `from_*()`
+- Getters: Simple method names without prefix (`chip()`, `line()`, `edge()`)
+- Predicates: `is_*()` pattern (`is_rising()`, `is_falling()`, `is_writable()`)
 
 **Variables:**
-- snake_case for variables
-- UPPER_SNAKE_CASE for constants
-- No underscore prefix for private fields
+- `snake_case` for all variables
+- Register variables: `dst`, `src`, `regs`, `value`
+- Counters: `next_id`, `index`
+- Constants: `SCREAMING_SNAKE_CASE` (`KERNEL_BINARY`, `BOOTABLE_ISO`)
 
 **Types:**
-- PascalCase for structs, enums, traits
-- No I prefix for interfaces/traits (use descriptive names)
-- Error suffix for error types (e.g., `MountError`, `VerifyError`)
-
-**Crates:**
-- snake_case with `kernel_` prefix for kernel subsystems
-- Examples: `kernel_vfs`, `kernel_bpf`, `kernel_physical_memory`
+- `PascalCase` for structs: `BpfInsn`, `RegisterFile`, `BpfProgram`
+- `PascalCase` for enums: `OpcodeClass`, `SourceType`, `AluOp`
+- `PascalCase` for traits: `PhysicalProfile`, `AttachPoint`, `BpfExecutor`
+- No `I` prefix for interfaces/traits
 
 ## Code Style
 
 **Formatting:**
-- Tool: rustfmt with `rustfmt.toml`
-- Settings: `imports_granularity = "Module"`, `group_imports = "StdExternalCrate"`
-- Enforced via CI: `cargo fmt -- --check`
+- Rustfmt with `.rustfmt.toml`
+- `imports_granularity = "Module"`
+- `group_imports = "StdExternalCrate"`
+- 4-space indentation (Rust standard)
 
 **Linting:**
-- Tool: clippy
-- Severity: All warnings as errors (`-D clippy::all`)
-- Scope: Workspace libraries (`--workspace --lib`)
+- Clippy with all warnings as errors: `-D clippy::all`
 - Run: `cargo clippy --workspace --lib -- -D clippy::all`
+- CI enforces: Format check mandatory
 
 **Attributes:**
-- `#[must_use]` on functions returning important values
-- `#[inline]` and `#[inline(always)]` for performance-critical code
-- `#[repr(C)]` or `#[repr(u8/u32)]` for FFI and bytecode structs
-- `#[cfg(...)]` for feature-gated and profile-specific code
+- `#[repr(C)]` for FFI structs
+- `#[inline]` on hot-path functions
+- `#[must_use]` on constructors returning values
+- `#[allow(dead_code)]` for intentional unused code
 
 ## Import Organization
 
 **Order:**
-1. `core::` and `alloc::` imports (no_std environment)
-2. External crates (spin, thiserror, etc.)
-3. Workspace crates (kernel_*, etc.)
-4. Crate-internal imports (`crate::`, `super::`)
+1. `extern crate` declarations
+2. Standard library (`core::`, `alloc::`)
+3. External crates
+4. Internal modules (`super::`, `crate::`)
 
 **Grouping:**
 - Blank line between groups
-- Configured via rustfmt: `group_imports = "StdExternalCrate"`
+- `use` statements at top of file
+- Re-exports via `pub use`
 
 **Path Aliases:**
-- None defined (use full paths)
+- None defined (use relative paths)
 
 ## Error Handling
 
 **Patterns:**
-- Use `thiserror` for error type definitions
-- Propagate errors with `?` operator
-- `expect()` only in initialization code where failure should panic
-- `todo!()` for unimplemented features (explicit, documented crashes)
+- `Result<T, E>` for fallible operations
+- `expect()` for initialization failures (acceptable kernel panic)
+- Error codes returned to userspace
 
 **Error Types:**
-```rust
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Error)]
-pub enum MountError {
-    #[error("the mount point is already used")]
-    AlreadyMounted,
-}
-```
+- Custom error enums per module (`VerifyError`, `AttachError`, `OpenError`)
+- `thiserror` for error derivation in some crates
 
-**When to panic:**
-- Boot-time initialization failures
-- Invariant violations (should never happen)
-- Use `expect("descriptive message")` not bare `unwrap()`
+**Unsafe:**
+- Required `// SAFETY:` comment for all unsafe blocks (not consistently followed)
+- Prefer safe Rust; justify all unsafe blocks
 
 ## Logging
 
 **Framework:**
-- `log` crate facade (no_std compatible)
-- Backend: Serial console via `uart_16550`
+- `log` crate abstraction - `kernel/src/log.rs`
+- Serial console output
 
 **Patterns:**
-- `info!()` for significant state changes
-- `debug!()` for detailed execution flow
-- `error!()` for failures (with context)
-- No `println!()` in kernel code
-
-**Location:**
-- Setup: `kernel/src/log.rs`
-- Usage: Throughout kernel with `use log::{info, debug, error}`
+- `log::info!`, `log::debug!`, `log::error!` macros
+- Debug output to serial console
 
 ## Comments
 
 **When to Comment:**
-- Explain "why" not "what"
-- Document safety invariants for `unsafe` blocks (required)
-- Module-level docs explaining purpose and architecture
-- ASCII diagrams for complex data structures
+- Module-level `//!` documentation
+- Public API `///` documentation
+- Explain why, not what
+- Safety comments for unsafe blocks
 
-**Doc Comments:**
-- `//!` for module-level documentation
-- `///` for item-level documentation
-- Use markdown with code blocks and tables
-
-**Example (from `kernel_bpf/src/lib.rs`):**
-```rust
-//! Single-Source eBPF Kernel with Build-Time Physical Profiles
-//!
-//! | Property | Cloud | Embedded |
-//! |----------|-------|----------|
-//! | Memory   | Elastic | Static |
-```
+**JSDoc/TSDoc:**
+- Not applicable (Rust uses `///` doc comments)
 
 **TODO Comments:**
 - Format: `// TODO: description`
-- Include context for incomplete features
-- FIXME for known bugs needing attention
+- Also: `// FIXME: description`
+- 51 TODOs found in codebase
 
 ## Function Design
 
 **Size:**
-- Keep functions focused (single responsibility)
-- Large files (>400 lines) are acceptable for complex subsystems
-- Extract helpers when logic is reusable
+- Keep functions focused
+- Extract helpers for complex logic
 
 **Parameters:**
-- Use generics with trait bounds for flexibility
-- Example: `path: impl AsRef<AbsolutePath>`
-- Destructure in function body, not parameter list
+- Generic bounds: `<P: PhysicalProfile>`
+- Reference parameters preferred
+- Use `AsRef<T>` for path-like parameters
 
 **Return Values:**
-- Return `Result<T, E>` for fallible operations
-- Use `Option<T>` for optional values
-- Explicit return types (no inference for public APIs)
+- `Result<T, E>` for fallible operations
+- `Option<T>` for nullable returns
+- Return early for guard clauses
 
 ## Module Design
 
 **Exports:**
-- Private modules with selective re-exports in lib.rs
-- Pattern: `mod foo; pub use foo::*;` or `pub use foo::SpecificType;`
+- Named exports preferred
+- Re-export public API from `mod.rs`
+- `pub use` for submodule re-exports
 
-**Example (from `kernel_abi/src/lib.rs`):**
-```rust
-mod errno;
-mod fcntl;
-mod syscall;
+**Visibility:**
+- `pub` for public API
+- `pub(crate)` for crate-internal
+- Private by default
 
-pub use errno::*;
-pub use fcntl::*;
-pub use syscall::*;
-```
+**Crate Organization:**
+- `kernel_` prefix for subsystem crates
+- Each crate independently testable
+- Workspace dependencies via `workspace = true`
 
-**Barrel Files:**
-- lib.rs re-exports public API
-- Internal helpers stay private
-- Avoid circular dependencies
+## Test Patterns
 
-## Derives & Traits
+**Location:**
+- Co-located `#[cfg(test)] mod tests { ... }` at end of file
 
-**Standard Derives:**
-- `Clone, Copy` for value types
-- `Debug` for all public types
-- `PartialEq, Eq` for comparable types
-- `Default` when sensible defaults exist
-- `Hash` for hashable types
+**Naming:**
+- `snake_case` test function names
+- Descriptive names: `create_gpio_attach`, `invalid_function_name`
 
-**Common Pattern:**
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum Register {
-    R0 = 0,
-    // ...
-}
-```
-
-## Unsafe Code
-
-**Requirements:**
-- Safety comment required for all `unsafe` blocks (per CONTRIBUTING.md)
-- Explain why the operation is safe
-- Minimize unsafe scope
-
-**Example:**
-```rust
-// SAFETY: data_end is always >= data (validated in from_slice)
-unsafe { self.data_end.offset_from(self.data) as usize }
-```
-
-## Feature Flags
-
-**Profile Features (kernel_bpf):**
-- `cloud-profile` - Servers, VMs, elastic resources
-- `embedded-profile` - IoT, RPi5, static resources
-- Mutually exclusive at compile time
-
-**Pattern:**
-```rust
-#[cfg(all(feature = "cloud-profile", feature = "embedded-profile"))]
-compile_error!("Cannot enable both profiles");
-```
+**Assertions:**
+- `assert_eq!()` for equality
+- `assert!()` for boolean
+- `assert!(matches!())` for pattern matching
 
 ---
 

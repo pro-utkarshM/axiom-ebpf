@@ -5,252 +5,249 @@
 ## Test Framework
 
 **Runner:**
-- Rust standard library `#[test]` with cargo test
-- No external test framework
+- Rust built-in test framework
+- No separate config file needed
 
 **Assertion Library:**
-- Built-in `assert!`, `assert_eq!`, `assert_ne!`
-- Pattern matching with `matches!` macro
+- Rust built-in: `assert!`, `assert_eq!`, `assert_ne!`
+- Pattern matching: `assert!(matches!(...))`
 
 **Run Commands:**
 ```bash
-cargo test                                    # Run all tests
-cargo test -p kernel_bpf                      # Single crate
-cargo test -p kernel_bpf --no-default-features --features cloud-profile  # With features
-cargo miri test -p kernel_abi                 # With Miri (UB detection)
+cargo test                              # Run all tests
+cargo test -p kernel_bpf                # Single crate
+cargo test --release                    # Release mode
+cargo miri test -p <crate>              # Miri undefined behavior check
+cargo bench -p kernel_bpf               # Run benchmarks
 ```
 
 ## Test File Organization
 
 **Location:**
-- Integration tests in dedicated `tests/` directories
-- No co-located unit tests (bare-metal constraint)
-- Host-testable crates in `kernel/crates/kernel_*/`
+- Co-located with source in `#[cfg(test)]` modules
+- No separate `tests/` directories (except `kernel/crates/kernel_bpf/tests/`)
 
 **Naming:**
-- `tests/*.rs` - Integration test files
-- Descriptive names: `profile_contracts.rs`, `semantic_consistency.rs`
+- Unit tests: Same file, `mod tests` at end
+- Integration tests: `kernel/crates/kernel_bpf/tests/`
+- Benchmarks: `kernel/crates/kernel_bpf/benches/`
 
 **Structure:**
 ```
 kernel/crates/kernel_bpf/
 ├── src/
-│   └── lib.rs
-└── tests/
-    ├── profile_contracts.rs
-    └── semantic_consistency.rs
+│   ├── attach/
+│   │   ├── gpio.rs          # contains #[cfg(test)] mod tests
+│   │   └── kprobe.rs         # contains #[cfg(test)] mod tests
+│   ├── bytecode/
+│   │   └── insn.rs           # contains #[cfg(test)] mod tests
+│   └── ...
+├── tests/
+│   └── semantic_consistency.rs
+└── benches/
+    ├── interpreter.rs
+    ├── verifier.rs
+    └── maps.rs
 ```
 
 ## Test Structure
 
 **Suite Organization:**
 ```rust
-#[test]
-fn test_name() {
-    // arrange
-    let input = create_test_input();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // act
-    let result = function_under_test(input);
+    #[test]
+    fn create_gpio_attach() {
+        let gpio = GpioAttach::<ActiveProfile>::new(
+            "gpiochip0", 17, GpioEdge::Rising
+        ).unwrap();
 
-    // assert
-    assert_eq!(result, expected);
+        assert_eq!(gpio.chip(), "gpiochip0");
+        assert_eq!(gpio.line(), 17);
+        assert_eq!(gpio.edge(), GpioEdge::Rising);
+    }
+
+    #[test]
+    fn invalid_function_name() {
+        let result = KprobeAttach::<ActiveProfile>::new("", KprobeType::Entry);
+        assert!(matches!(result, Err(AttachError::InvalidTarget(_))));
+    }
 }
 ```
 
 **Patterns:**
-- One assertion focus per test
-- Feature-gated tests with `#[cfg(feature = "...")]`
-- No setup/teardown (tests are independent)
-
-**Feature-Gated Test Example:**
-```rust
-#[test]
-#[cfg(feature = "cloud-profile")]
-fn cloud_profile_has_high_limits() {
-    use kernel_bpf::profile::CloudProfile;
-
-    assert!(CloudProfile::MAX_STACK_SIZE >= 512 * 1024);
-    assert!(CloudProfile::MAX_INSN_COUNT >= 1_000_000);
-    assert!(CloudProfile::JIT_ALLOWED);
-}
-```
+- One test per behavior
+- Descriptive test names
+- Arrange/Act/Assert structure (implicit)
 
 ## Mocking
 
 **Framework:**
-- No mocking framework (tests use real implementations)
-- Test doubles created manually when needed
+- No mocking framework used
+- Manual test doubles where needed
 
 **Patterns:**
-- BPF programs built with `ProgramBuilder` for testing
-- Context created with `BpfContext::empty()` or `BpfContext::from_slice()`
+- Profile-specific testing via feature flags
+- Generic type parameters for dependency injection
 
 **What to Mock:**
-- Not applicable (kernel code tests real implementations)
+- External hardware interactions (via abstractions)
 
 **What NOT to Mock:**
-- Core algorithms (verifier, interpreter)
-- Data structures (instructions, programs)
+- Pure functions
+- Internal logic
 
 ## Fixtures and Factories
 
 **Test Data:**
 ```rust
-// Factory pattern for test programs
-let program = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
-    .insn(BpfInsn::mov64_imm(0, 42))
-    .insn(BpfInsn::exit())
-    .build()
-    .expect("valid program");
+// Factory pattern in test
+fn create_test_program() -> BpfProgram<ActiveProfile> {
+    ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
+        .insn(BpfInsn::mov64_imm(0, 0))
+        .insn(BpfInsn::exit())
+        .build()
+        .expect("valid program")
+}
 ```
 
 **Location:**
-- Inline in test files (no separate fixtures directory)
-- Helper functions for complex setup
+- Factory functions in test modules
+- No shared fixtures directory
 
 ## Coverage
 
 **Requirements:**
 - No enforced coverage target
-- Focus on critical paths (BPF verifier, interpreter)
+- Focus on critical paths (verifier, execution)
 
 **Configuration:**
-- Not configured (no coverage tool in CI)
+- No coverage tool configured
+- Miri for undefined behavior detection
 
-**Strategy:**
-- Test profile contracts explicitly
-- Test semantic consistency across profiles
-- Test error conditions
+**View Coverage:**
+```bash
+# Not configured - use cargo-tarpaulin if needed
+cargo install cargo-tarpaulin
+cargo tarpaulin -p kernel_bpf
+```
 
 ## Test Types
 
 **Unit Tests:**
-- Scope: Individual crate functionality
-- Location: `kernel/crates/kernel_*/tests/`
-- Run: `cargo test -p <crate_name>`
+- Scope: Single function/struct in isolation
+- Location: `#[cfg(test)] mod tests` in source files
+- Examples: `kernel/crates/kernel_bpf/src/bytecode/insn.rs`
 
 **Integration Tests:**
-- Scope: Cross-crate functionality
-- Not currently implemented (kernel is bare-metal)
+- Scope: Multiple modules together
+- Location: `kernel/crates/kernel_bpf/tests/`
+- Examples: `semantic_consistency.rs` (profile consistency)
 
-**E2E Tests:**
-- Scope: Full kernel boot and execution
-- Method: Manual testing via QEMU
-- Run: `cargo run` (builds and boots in QEMU)
+**Benchmarks:**
+- Framework: Criterion 0.5
+- Location: `kernel/crates/kernel_bpf/benches/`
+- Examples: `interpreter.rs`, `verifier.rs`, `maps.rs`
 
-**Bare-Metal Limitation:**
-- Main kernel (`kernel/src/`) cannot run standard tests
-- Uses custom linker script incompatible with test harness
-- Testable code extracted to `kernel/crates/kernel_*/`
+**Profile-Specific Tests:**
+```bash
+# Cloud profile
+cargo test -p kernel_bpf --no-default-features --features cloud-profile
+
+# Embedded profile (default)
+cargo test -p kernel_bpf --no-default-features --features embedded-profile
+```
 
 ## Common Patterns
 
-**Semantic Consistency Testing:**
+**Async Testing:**
+- Not applicable (no async in kernel_bpf)
+
+**Error Testing:**
 ```rust
 #[test]
-fn semantic_return_constant() {
-    let program = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
-        .insn(BpfInsn::mov64_imm(0, 42))
-        .insn(BpfInsn::exit())
-        .build()
-        .expect("valid program");
+fn invalid_function_name() {
+    let result = KprobeAttach::<ActiveProfile>::new("", KprobeType::Entry);
+    assert!(matches!(result, Err(AttachError::InvalidTarget(_))));
+}
+```
 
+**Snapshot Testing:**
+- Not used
+
+**Benchmark Pattern:**
+```rust
+use criterion::{criterion_group, criterion_main, Criterion, black_box};
+
+fn bench_arithmetic(c: &mut Criterion) {
+    let mut group = c.benchmark_group("interpreter/arithmetic");
+
+    let program = create_test_program();
     let interp = Interpreter::<ActiveProfile>::new();
-    let result = interp.execute(&program, &BpfContext::empty());
+    let ctx = BpfContext::empty();
 
-    assert_eq!(result, Ok(42));
+    group.bench_function("simple_math", |b| {
+        b.iter(|| interp.execute(black_box(&program), black_box(&ctx)))
+    });
+
+    group.finish();
 }
+
+criterion_group!(benches, bench_arithmetic);
+criterion_main!(benches);
 ```
 
-**Profile Contract Testing:**
-```rust
-#[test]
-#[cfg(feature = "embedded-profile")]
-fn embedded_profile_has_strict_limits() {
-    use kernel_bpf::profile::EmbeddedProfile;
+## CI Pipeline
 
-    assert!(EmbeddedProfile::MAX_STACK_SIZE <= 8 * 1024);
-    assert!(EmbeddedProfile::MAX_INSN_COUNT <= 100_000);
-    assert!(!EmbeddedProfile::JIT_ALLOWED);
-}
-```
+**Jobs (`.github/workflows/build.yml`):**
 
-**Type Identity Testing:**
-```rust
-#[test]
-#[cfg(feature = "embedded-profile")]
-fn embedded_profile_is_active() {
-    use core::any::TypeId;
-    use kernel_bpf::profile::EmbeddedProfile;
+1. **Lint:**
+   - `cargo fmt -- --check`
+   - `cargo clippy --workspace --lib -- -D clippy::all`
 
-    assert_eq!(
-        TypeId::of::<ActiveProfile>(),
-        TypeId::of::<EmbeddedProfile>()
-    );
-}
-```
+2. **Test:**
+   - Matrix: debug and release modes
+   - `cargo test` and `cargo test --release`
 
-## CI/CD Testing Pipeline
+3. **Miri (per-crate):**
+   - `cargo miri test -p <package>`
+   - Excludes kernel_bpf (has dedicated job)
 
-**GitHub Actions Workflow (`.github/workflows/build.yml`):**
+4. **Miri kernel_bpf:**
+   - Profile matrix: cloud-profile, embedded-profile
+   - `cargo miri test -p kernel_bpf --no-default-features --features <profile>`
 
-1. **Lint Job:**
-   ```bash
-   cargo fmt -- --check
-   cargo clippy --workspace --lib -- -D clippy::all
-   ```
+5. **Build:**
+   - `cargo build --release`
+   - Artifacts: `muffin.iso`
 
-2. **Test Job (Matrix: debug, release):**
-   ```bash
-   cargo test [--release]
-   ```
+**Schedule:** On push + twice daily (0 5,17 * * *)
 
-3. **Miri Job (Per-Crate):**
-   ```bash
-   cargo miri setup
-   cargo miri test -p <package>
-   ```
-   - Tests all crates except kernel_bpf (special handling)
-
-4. **Miri kernel_bpf Job (Profile Matrix):**
-   ```bash
-   cargo miri test -p kernel_bpf --no-default-features --features cloud-profile
-   cargo miri test -p kernel_bpf --no-default-features --features embedded-profile
-   ```
-
-5. **Build Job:**
-   - Depends on: test, miri, miri-kernel-bpf
-   - Full release build: `cargo build --release`
-
-**Schedule:** Every push + twice daily (cron: `0 5,17 * * *`)
-
-**BPF Profile CI (`.github/workflows/bpf-profiles.yml`):**
-- Dedicated workflow for BPF profile testing
-- Tests both profiles separately
-- Semantic consistency verification
-- Format check
-
-## Testing Best Practices
-
-**Pre-Submission Checklist (from CONTRIBUTING.md):**
+**Local Validation:**
 ```bash
-cargo fmt -- --check              # Format check
-cargo clippy --workspace --lib -- -D clippy::all  # Lint
-cargo build --workspace --lib     # Build check
-cargo test                        # Run tests
-cargo miri setup && cargo miri test -p <crate>  # UB detection
+cargo fmt -- --check
+cargo clippy --workspace --lib -- -D clippy::all
+cargo build
+cargo test
+cargo miri setup
+cargo miri test -p kernel_bpf
+cargo build --release
 ```
 
-**Command Restrictions:**
-- Don't run `cargo test` on bare-metal targets
-- Use `--workspace --lib` to avoid linker errors
-- Test individual kernel crates: `cargo test -p kernel_abi`
+## Test Gaps
 
-**Miri for Unsafe Code:**
-- Required for crates with unsafe code
-- Detects undefined behavior
-- Run: `cargo miri test -p <crate>`
+**Known Gaps:**
+- BPF syscall handler (`kernel/src/syscall/bpf.rs`) - No unit tests
+- Unsafe pointer operations - Limited testing
+- Full BPF lifecycle integration - Manual testing only
+- JIT compiler correctness - Limited coverage
+
+**Priority Areas:**
+- Verifier (critical for safety)
+- Map operations (data integrity)
+- Syscall boundary validation
 
 ---
 
