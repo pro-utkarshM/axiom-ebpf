@@ -73,10 +73,34 @@ mod ctrl {
     pub const OEOVER_SHIFT: u32 = 15;
 }
 
-/// Status register bit fields
+/// Status register bit fields (from Linux pinctrl-rp1.c)
 mod status {
     /// Input level (bit 17)
     pub const LEVEL_BIT: u32 = 17;
+    /// Falling edge event detected (bit 20)
+    pub const EVENT_FALLING: u32 = 1 << 20;
+    /// Rising edge event detected (bit 21)
+    pub const EVENT_RISING: u32 = 1 << 21;
+    /// Low level event detected (bit 22)
+    pub const EVENT_LOW: u32 = 1 << 22;
+    /// High level event detected (bit 23)
+    pub const EVENT_HIGH: u32 = 1 << 23;
+    /// Mask for all raw event bits
+    pub const EVENT_MASK: u32 = 0xF << 20;
+}
+
+/// Control register interrupt enable bits (from Linux pinctrl-rp1.c)
+mod irq_ctrl {
+    /// Enable falling edge interrupt (bit 20)
+    pub const IRQEN_FALLING: u32 = 1 << 20;
+    /// Enable rising edge interrupt (bit 21)
+    pub const IRQEN_RISING: u32 = 1 << 21;
+    /// Enable low level interrupt (bit 22)
+    pub const IRQEN_LOW: u32 = 1 << 22;
+    /// Enable high level interrupt (bit 23)
+    pub const IRQEN_HIGH: u32 = 1 << 23;
+    /// IRQ reset - write 1 to clear pending interrupt (bit 28)
+    pub const IRQRESET: u32 = 1 << 28;
 }
 
 /// RP1 GPIO Driver
@@ -193,5 +217,164 @@ impl Rp1Gpio {
     fn reg_ctrl(&self, pin: u8) -> MmioReg<u32> {
         let offset = (pin as usize) * GPIO_REG_STRIDE + reg::CTRL;
         unsafe { MmioReg::new(self.base + offset) }
+    }
+
+    /// Enable interrupt for a specific pin
+    ///
+    /// Configures the GPIO control register to generate interrupts on
+    /// the specified edge transitions.
+    pub fn enable_interrupt(&self, pin: u8, rising: bool, falling: bool) {
+        assert!(pin < Self::NUM_PINS, "Invalid GPIO pin: {}", pin);
+        let ctrl = self.reg_ctrl(pin);
+        let mut mask = 0;
+        if rising {
+            mask |= irq_ctrl::IRQEN_RISING;
+        }
+        if falling {
+            mask |= irq_ctrl::IRQEN_FALLING;
+        }
+        ctrl.modify(|v| v | mask);
+    }
+
+    /// Disable interrupt for a specific pin
+    pub fn disable_interrupt(&self, pin: u8) {
+        assert!(pin < Self::NUM_PINS, "Invalid GPIO pin: {}", pin);
+        let ctrl = self.reg_ctrl(pin);
+        let mask = irq_ctrl::IRQEN_RISING
+            | irq_ctrl::IRQEN_FALLING
+            | irq_ctrl::IRQEN_LOW
+            | irq_ctrl::IRQEN_HIGH;
+        ctrl.modify(|v| v & !mask);
+    }
+
+    /// Clear interrupt for a specific pin
+    ///
+    /// Writes to the IRQRESET bit in the control register to acknowledge
+    /// and clear the pending interrupt.
+    pub fn clear_interrupt(&self, pin: u8) {
+        assert!(pin < Self::NUM_PINS, "Invalid GPIO pin: {}", pin);
+        let ctrl = self.reg_ctrl(pin);
+        // Set IRQRESET bit to clear the interrupt
+        ctrl.modify(|v| v | irq_ctrl::IRQRESET);
+    }
+
+    /// Check if a pin has a pending interrupt event
+    ///
+    /// Returns the raw event status bits (falling, rising, low, high).
+    pub fn get_pending_events(&self, pin: u8) -> u32 {
+        assert!(pin < Self::NUM_PINS, "Invalid GPIO pin: {}", pin);
+        let status = self.reg_status(pin).read();
+        status & status::EVENT_MASK
+    }
+
+    /// Check if a rising edge event is pending
+    pub fn has_rising_event(&self, pin: u8) -> bool {
+        (self.get_pending_events(pin) & status::EVENT_RISING) != 0
+    }
+
+    /// Check if a falling edge event is pending
+    pub fn has_falling_event(&self, pin: u8) -> bool {
+        (self.get_pending_events(pin) & status::EVENT_FALLING) != 0
+    }
+}
+
+/// Read the ARM generic timer counter for high-precision timestamps
+#[inline]
+fn read_timer_counter() -> u64 {
+    let cntvct: u64;
+    unsafe {
+        core::arch::asm!("mrs {}, cntvct_el0", out(reg) cntvct);
+    }
+    cntvct
+}
+
+/// Get the timer frequency for converting counter to nanoseconds
+#[inline]
+fn get_timer_frequency() -> u64 {
+    let cntfrq: u64;
+    unsafe {
+        core::arch::asm!("mrs {}, cntfrq_el0", out(reg) cntfrq);
+    }
+    cntfrq
+}
+
+/// Convert timer counter value to nanoseconds
+#[inline]
+fn counter_to_ns(counter: u64) -> u64 {
+    let freq = get_timer_frequency();
+    if freq == 0 {
+        return 0;
+    }
+    // Avoid overflow: (counter * 1_000_000_000) / freq
+    // Use: counter / freq * 1_000_000_000 + (counter % freq) * 1_000_000_000 / freq
+    let secs = counter / freq;
+    let remainder = counter % freq;
+    secs * 1_000_000_000 + (remainder * 1_000_000_000) / freq
+}
+
+/// Handle GPIO interrupt
+///
+/// Called from the main IRQ handler when an RP1 GPIO interrupt fires.
+/// Scans all pins for pending events and invokes attached BPF programs.
+pub fn handle_interrupt() {
+    let gpio = unsafe { Rp1Gpio::new() };
+
+    // Get timestamp at interrupt entry for accurate timing
+    let timestamp = counter_to_ns(read_timer_counter());
+
+    // Scan all pins for events
+    for pin in 0..Rp1Gpio::NUM_PINS {
+        let events = gpio.get_pending_events(pin);
+
+        // Check if any event is pending on this pin
+        if events != 0 {
+            // Determine edge type from event status
+            let is_rising = (events & status::EVENT_RISING) != 0;
+            let is_falling = (events & status::EVENT_FALLING) != 0;
+
+            // Determine the edge type for BPF context
+            // 1 = rising, 2 = falling, 3 = both (shouldn't normally happen)
+            let edge = match (is_rising, is_falling) {
+                (true, false) => 1,  // Rising
+                (false, true) => 2,  // Falling
+                (true, true) => 3,   // Both (edge case)
+                (false, false) => {
+                    // Level interrupt or spurious - skip
+                    gpio.clear_interrupt(pin);
+                    continue;
+                }
+            };
+
+            // Read current pin value
+            let value = if gpio.read(pin) { 1 } else { 0 };
+
+            // 1. Clear interrupt FIRST to avoid missing edges
+            gpio.clear_interrupt(pin);
+
+            // 2. Prepare BPF Context
+            let event = kernel_bpf::attach::GpioEvent {
+                timestamp,
+                chip_id: 0, // gpiochip0 (RP1 IO Bank 0)
+                line: pin as u32,
+                edge,
+                value,
+            };
+
+            // Safety: Transmuting struct to slice for read-only access
+            let slice = unsafe {
+                core::slice::from_raw_parts(
+                    &event as *const _ as *const u8,
+                    core::mem::size_of::<kernel_bpf::attach::GpioEvent>(),
+                )
+            };
+
+            let ctx = kernel_bpf::execution::BpfContext::from_slice(slice);
+
+            // 3. Invoke BPF hooks
+            if let Some(manager) = crate::BPF_MANAGER.get() {
+                // Execute all attached BPF programs
+                manager.lock().execute_hooks(crate::bpf::ATTACH_TYPE_GPIO, &ctx);
+            }
+        }
     }
 }

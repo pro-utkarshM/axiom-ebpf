@@ -175,6 +175,45 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
                 match manager.lock().attach(attach_type, prog_id) {
                     Ok(_) => {
                         log::info!("sys_bpf: attached prog {} to type {}", prog_id, attach_type);
+
+                        // For GPIO attach type, also configure hardware interrupts
+                        #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+                        if attach_type == crate::bpf::ATTACH_TYPE_GPIO {
+                            // Use key as GPIO pin number, value as edge flags
+                            // edge flags: 1 = rising, 2 = falling, 3 = both
+                            let pin = attr.key as u8;
+                            let edge_flags = attr.value as u32;
+
+                            if pin < 28 {
+                                let gpio =
+                                    unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
+
+                                // Configure pin as input for edge detection
+                                gpio.configure_input(pin);
+
+                                // Enable interrupts based on edge flags
+                                let rising = (edge_flags & 1) != 0;
+                                let falling = (edge_flags & 2) != 0;
+
+                                // Default to both edges if none specified
+                                let (rising, falling) = if !rising && !falling {
+                                    (true, true)
+                                } else {
+                                    (rising, falling)
+                                };
+
+                                gpio.enable_interrupt(pin, rising, falling);
+                                log::info!(
+                                    "sys_bpf: enabled GPIO{} interrupt (rising={}, falling={})",
+                                    pin,
+                                    rising,
+                                    falling
+                                );
+                            } else {
+                                log::warn!("sys_bpf: invalid GPIO pin {} (must be 0-27)", pin);
+                            }
+                        }
+
                         0
                     }
                     Err(e) => {

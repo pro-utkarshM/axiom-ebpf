@@ -5,11 +5,104 @@ pub extern "C" fn bpf_ktime_get_ns() -> u64 {
     get_kernel_time_ns()
 }
 
+/// BPF helper: Read GPIO pin value
+///
+/// Returns 1 if pin is high, 0 if low, -1 on error (invalid pin).
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_gpio_read(pin: u32) -> i64 {
+    #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+    {
+        if pin >= 28 {
+            return -1;
+        }
+        let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
+        if gpio.read(pin as u8) { 1 } else { 0 }
+    }
+    #[cfg(not(all(target_arch = "aarch64", feature = "rpi5")))]
+    {
+        let _ = pin;
+        -1
+    }
+}
+
+/// BPF helper: Write GPIO pin value
+///
+/// Sets output pin high (value != 0) or low (value == 0).
+/// Returns 0 on success, -1 on error (invalid pin).
+///
+/// Note: Pin must be configured as output first via syscall.
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_gpio_write(pin: u32, value: u32) -> i64 {
+    #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+    {
+        if pin >= 28 {
+            return -1;
+        }
+        let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
+        if value != 0 {
+            gpio.set_high(pin as u8);
+        } else {
+            gpio.set_low(pin as u8);
+        }
+        0
+    }
+    #[cfg(not(all(target_arch = "aarch64", feature = "rpi5")))]
+    {
+        let _ = (pin, value);
+        -1
+    }
+}
+
+/// BPF helper: Toggle GPIO pin
+///
+/// Toggles output pin state (high -> low or low -> high).
+/// Returns new value (0 or 1) on success, -1 on error.
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_gpio_toggle(pin: u32) -> i64 {
+    #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+    {
+        if pin >= 28 {
+            return -1;
+        }
+        let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
+        gpio.toggle(pin as u8);
+        // Return new value
+        if gpio.read(pin as u8) { 1 } else { 0 }
+    }
+    #[cfg(not(all(target_arch = "aarch64", feature = "rpi5")))]
+    {
+        let _ = pin;
+        -1
+    }
+}
+
+/// BPF helper: Configure GPIO pin as output
+///
+/// Configures pin as output with specified initial value.
+/// Returns 0 on success, -1 on error.
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_gpio_set_output(pin: u32, initial_high: u32) -> i64 {
+    #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+    {
+        if pin >= 28 {
+            return -1;
+        }
+        let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
+        gpio.configure_output(pin as u8, initial_high != 0);
+        0
+    }
+    #[cfg(not(all(target_arch = "aarch64", feature = "rpi5")))]
+    {
+        let _ = (pin, initial_high);
+        -1
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_trace_printk(fmt: *const u8, _size: u32) -> i32 {
     // Safety: The verifier guarantees that the string is in valid memory.
     unsafe {
-        let s = core::ffi::CStr::from_ptr(fmt as *const i8);
+        let s = core::ffi::CStr::from_ptr(fmt as *const core::ffi::c_char);
         if let Ok(msg) = s.to_str() {
             log::info!("[BPF] {}", msg);
             return 0;
