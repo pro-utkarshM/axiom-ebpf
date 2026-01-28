@@ -3,36 +3,57 @@
 //! This module handles interrupt initialization and dispatching for ARM64.
 //! It uses the GIC (Generic Interrupt Controller) for interrupt management
 //! and the ARM generic timer for scheduling.
+//!
+//! # RP1 GPIO Interrupt Routing
+//!
+//! On Raspberry Pi 5, the RP1 southbridge connects via PCIe2. The RP1 has
+//! its own internal interrupt controller that aggregates all peripheral
+//! interrupts (GPIO, UART, SPI, etc.) and routes them to the main GIC
+//! via PCIe MSI or legacy interrupts.
+//!
+//! According to the BCM2712 device tree:
+//! - PCIe2 INTA -> GIC SPI 229 (IRQ 261)
+//! - PCIe2 INTB -> GIC SPI 230 (IRQ 262)
+//! - PCIe2 INTC -> GIC SPI 231 (IRQ 263)
+//! - PCIe2 INTD -> GIC SPI 232 (IRQ 264)
+//!
+//! The RP1's GPIO Bank 0 generates internal IRQ 0, which routes through
+//! the RP1's interrupt controller to one of these PCIe lines.
 
 use super::gic;
 
-/// Physical timer IRQ number
+/// Physical timer IRQ number (PPI 14 = IRQ 30)
 const TIMER_IRQ: u32 = gic::irq::TIMER_PHYS;
 
-/// RP1 GPIO IRQ number (Placeholder - needs verification)
-const RP1_GPIO_IRQ: u32 = 112;
+/// RP1 GPIO IRQ number
+///
+/// The RP1 connects via PCIe2, which uses GIC SPI 229-232 for INTA-D.
+/// GIC SPI numbers map to IRQ IDs as: SPI N = IRQ (32 + N).
+/// So PCIe2 INTA (SPI 229) = IRQ 261.
+///
+/// Note: The RP1 has its own internal interrupt controller. GPIO Bank 0
+/// is RP1 internal IRQ 0. A full implementation would need to also read
+/// the RP1's interrupt status registers to determine which peripheral
+/// (GPIO, UART, etc.) raised the interrupt.
+const RP1_GPIO_IRQ: u32 = 261; // GIC SPI 229 = 32 + 229
 
 /// Initialize interrupt controller and timer
 pub fn init() {
     // Initialize the GIC
     gic::init();
 
-    // Enable timer interrupt
-    gic::enable_irq(crate::bpf::ATTACH_TYPE_TIMER); // Assuming mapping if we changed it, but wait, TIMER_IRQ is hardware IRQ.
-    // Revert that thought. TIMER_IRQ is hardware IRQ (30).
+    // Enable timer interrupt (PPI 14)
     gic::enable_irq(TIMER_IRQ);
-    
-    // Enable GPIO interrupt
+    gic::set_priority(TIMER_IRQ, 0x80);
+
+    // Enable RP1 GPIO interrupt (routed via PCIe2)
     gic::enable_irq(RP1_GPIO_IRQ);
     gic::set_priority(RP1_GPIO_IRQ, 0x80);
-
-    // Set timer priority (high priority)
-    gic::set_priority(TIMER_IRQ, 0x80);
 
     // Initialize and start the timer
     init_timer();
 
-    log::info!("ARM interrupts initialized");
+    log::info!("ARM interrupts initialized (timer={}, gpio={})", TIMER_IRQ, RP1_GPIO_IRQ);
 }
 
 /// Handle IRQ interrupt (called from exception vector)
@@ -50,7 +71,10 @@ pub extern "C" fn handle_irq() {
     match irq {
         TIMER_IRQ => handle_timer_interrupt(),
         RP1_GPIO_IRQ => {
+            #[cfg(feature = "rpi5")]
             crate::arch::aarch64::platform::rpi5::gpio::handle_interrupt();
+            #[cfg(not(feature = "rpi5"))]
+            log::warn!("RP1 GPIO IRQ on non-rpi5 build");
         }
         _ => {
             log::warn!("Unhandled IRQ: {}", irq);
