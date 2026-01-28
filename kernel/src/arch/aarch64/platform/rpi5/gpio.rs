@@ -77,8 +77,8 @@ mod ctrl {
 mod status {
     /// Input level (bit 17)
     pub const LEVEL_BIT: u32 = 17;
-    /// Event detected (bit 19) - PROVISIONAL
-    pub const EVENT_PENDING_BIT: u32 = 19;
+    /// Interrupt to Processor (bit 28) - Based on RP1 provisional docs
+    pub const IRQTOPROC_BIT: u32 = 28;
 }
 
 mod irq_ctrl {
@@ -219,7 +219,7 @@ impl Rp1Gpio {
         // Write 1 to clear W1C (Write 1 to Clear) bits usually, 
         // or check if there is a separate clear register. 
         // For RP1, writing to STATUS might clear event.
-        status.modify(|v| v | (1 << status::EVENT_PENDING_BIT));
+        status.modify(|v| v | (1 << status::IRQTOPROC_BIT));
     }
 }
 
@@ -232,7 +232,7 @@ pub fn handle_interrupt() {
     for pin in 0..Rp1Gpio::NUM_PINS {
         let status = gpio.reg_status(pin).read();
         
-        if (status & (1 << status::EVENT_PENDING_BIT)) != 0 {
+        if (status & (1 << status::IRQTOPROC_BIT)) != 0 {
             // Found active interrupt
             let is_rising = (status & (1 << status::LEVEL_BIT)) != 0; // Simplified assumption
             
