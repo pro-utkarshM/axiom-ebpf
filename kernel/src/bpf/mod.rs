@@ -8,7 +8,7 @@ use kernel_bpf::bytecode::insn::BpfInsn;
 use kernel_bpf::bytecode::program::BpfProgram;
 use kernel_bpf::execution::{BpfContext, BpfError, BpfExecutor, Interpreter};
 use kernel_bpf::loader::BpfLoader;
-use kernel_bpf::maps::{ArrayMap, BpfMap, HashMap as BpfHashMap};
+use kernel_bpf::maps::{ArrayMap, BpfMap, HashMap as BpfHashMap, RingBufMap};
 use kernel_bpf::profile::ActiveProfile;
 
 pub const ATTACH_TYPE_TIMER: u32 = 1;
@@ -120,6 +120,13 @@ impl BpfManager {
                         .map_err(|_| BpfError::OutOfMemory)?,
                 )
             }
+            27 => {
+                // Ring buffer map - max_entries is the buffer size (must be power of 2)
+                Box::new(
+                    RingBufMap::<ActiveProfile>::new(max_entries as usize)
+                        .map_err(|_| BpfError::OutOfMemory)?,
+                )
+            }
             _ => {
                 log::warn!("Unsupported map type: {}", map_type);
                 return Err(BpfError::InvalidInstruction);
@@ -173,5 +180,17 @@ impl BpfManager {
 
     pub fn get_map_def(&self, map_id: u32) -> Option<&kernel_bpf::maps::MapDef> {
         self.maps.get(map_id as usize).map(|m| m.def())
+    }
+
+    /// Output data to a ring buffer map.
+    ///
+    /// This is used by the bpf_ringbuf_output helper. For ringbuf maps,
+    /// the key is ignored and value is the event data.
+    pub fn ringbuf_output(&self, map_id: u32, data: &[u8], flags: u64) -> Result<(), BpfError> {
+        let map = self.maps.get(map_id as usize).ok_or(BpfError::NotLoaded)?;
+
+        // Ring buffer maps use update() with empty key to output data
+        map.update(&[], data, flags)
+            .map_err(|_| BpfError::OutOfMemory)
     }
 }

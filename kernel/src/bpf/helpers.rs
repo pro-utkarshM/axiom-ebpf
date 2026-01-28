@@ -185,3 +185,44 @@ pub extern "C" fn bpf_map_delete_elem(map_id: u32, key_ptr: *const u8) -> i32 {
     }
     -1
 }
+
+/// BPF helper: output data to a ring buffer map.
+///
+/// Writes event data to a ring buffer map for consumption by userspace.
+///
+/// # Arguments
+/// * `map_id` - The ring buffer map ID
+/// * `data_ptr` - Pointer to the event data
+/// * `data_size` - Size of the event data in bytes
+/// * `flags` - Reserved for future use (pass 0)
+///
+/// # Returns
+/// 0 on success, negative error code on failure.
+///
+/// # Safety
+/// Called from verified BPF programs. The verifier ensures data_ptr is valid.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_ringbuf_output(
+    map_id: u32,
+    data_ptr: *const u8,
+    data_size: u64,
+    flags: u64,
+) -> i64 {
+    use crate::BPF_MANAGER;
+
+    if data_ptr.is_null() {
+        return -1;
+    }
+
+    if let Some(manager) = BPF_MANAGER.get() {
+        let manager = manager.lock();
+        // Safety: Verifier ensures valid memory access for data_ptr
+        let data = unsafe { core::slice::from_raw_parts(data_ptr, data_size as usize) };
+
+        if manager.ringbuf_output(map_id, data, flags).is_ok() {
+            return 0;
+        }
+    }
+    -1
+}
