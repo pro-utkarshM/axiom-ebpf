@@ -7,7 +7,8 @@ use kernel_abi::{EINVAL, Errno, syscall_name};
 use kernel_syscall::access::FileAccess;
 use kernel_syscall::fcntl::sys_open;
 use kernel_syscall::mman::sys_mmap;
-use kernel_syscall::unistd::{sys_getcwd, sys_read, sys_write};
+use kernel_syscall::stat::sys_fstat;
+use kernel_syscall::unistd::{sys_close, sys_getcwd, sys_lseek, sys_read, sys_write};
 use kernel_syscall::{UserspaceMutPtr, UserspacePtr};
 use log::{error, trace};
 #[cfg(target_arch = "x86_64")]
@@ -76,6 +77,9 @@ pub fn dispatch_syscall(
         kernel_abi::SYS_OPEN => dispatch_sys_open(arg1, arg2, arg3, arg4),
         kernel_abi::SYS_READ => dispatch_sys_read(arg1, arg2, arg3),
         kernel_abi::SYS_WRITE => dispatch_sys_write(arg1, arg2, arg3),
+        kernel_abi::SYS_CLOSE => dispatch_sys_close(arg1),
+        kernel_abi::SYS_FSTAT => dispatch_sys_fstat(arg1, arg2),
+        kernel_abi::SYS_LSEEK => dispatch_sys_lseek(arg1, arg2, arg3),
         kernel_abi::SYS_BPF => dispatch_sys_bpf(arg1, arg2, arg3),
         _ => {
             error!("unimplemented syscall: {} ({n})", syscall_name(n));
@@ -180,6 +184,41 @@ fn dispatch_sys_bpf(cmd: usize, attr: usize, size: usize) -> Result<usize, Errno
     Ok(ret as usize)
 }
 
+#[cfg(target_arch = "x86_64")]
+fn dispatch_sys_close(fd: usize) -> Result<usize, Errno> {
+    let cx = KernelAccess::new();
+
+    let fd = i32::try_from(fd).map_err(|_| EINVAL)?;
+    let fd = <KernelAccess as FileAccess>::Fd::from(fd);
+
+    sys_close(&cx, fd)
+}
+
+#[cfg(target_arch = "x86_64")]
+fn dispatch_sys_lseek(fd: usize, offset: usize, whence: usize) -> Result<usize, Errno> {
+    let cx = KernelAccess::new();
+
+    let fd = i32::try_from(fd).map_err(|_| EINVAL)?;
+    let fd = <KernelAccess as FileAccess>::Fd::from(fd);
+    let offset = offset as i64;
+    let whence = i32::try_from(whence).map_err(|_| EINVAL)?;
+
+    sys_lseek(&cx, fd, offset, whence)
+}
+
+#[cfg(target_arch = "x86_64")]
+fn dispatch_sys_fstat(fd: usize, statbuf: usize) -> Result<usize, Errno> {
+    use kernel_syscall::stat::UserStat;
+
+    let cx = KernelAccess::new();
+
+    let fd = i32::try_from(fd).map_err(|_| EINVAL)?;
+    let fd = <KernelAccess as FileAccess>::Fd::from(fd);
+    let buf = unsafe { UserspaceMutPtr::<UserStat>::try_from_usize(statbuf)? };
+
+    sys_fstat::<KernelAccess>(&cx, fd, buf)
+}
+
 #[cfg(not(target_arch = "x86_64"))]
 fn dispatch_sys_getcwd(_path: usize, _size: usize) -> Result<usize, Errno> {
     Err(EINVAL)
@@ -219,5 +258,20 @@ fn dispatch_sys_write(_fd: usize, _buf: usize, _nbyte: usize) -> Result<usize, E
 
 #[cfg(not(target_arch = "x86_64"))]
 fn dispatch_sys_bpf(_cmd: usize, _attr: usize, _size: usize) -> Result<usize, Errno> {
+    Err(EINVAL)
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn dispatch_sys_close(_fd: usize) -> Result<usize, Errno> {
+    Err(EINVAL)
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn dispatch_sys_lseek(_fd: usize, _offset: usize, _whence: usize) -> Result<usize, Errno> {
+    Err(EINVAL)
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn dispatch_sys_fstat(_fd: usize, _statbuf: usize) -> Result<usize, Errno> {
     Err(EINVAL)
 }

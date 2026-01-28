@@ -93,6 +93,7 @@ mod tests {
         type ReadError = F::ReadError;
         type WriteError = F::WriteError;
         type CloseError = F::CloseError;
+        type LseekError = F::LseekError;
 
         fn file_info(&self, path: &AbsolutePath) -> Option<Self::FileInfo> {
             self.file_access.file_info(path)
@@ -112,6 +113,10 @@ mod tests {
 
         fn close(&self, fd: Self::Fd) -> Result<(), Self::CloseError> {
             self.file_access.close(fd)
+        }
+
+        fn lseek(&self, fd: Self::Fd, offset: i64, whence: i32) -> Result<usize, Self::LseekError> {
+            self.file_access.lseek(fd, offset, whence)
         }
     }
 

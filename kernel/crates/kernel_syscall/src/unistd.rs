@@ -1,9 +1,14 @@
 use core::slice::from_raw_parts_mut;
 
-use kernel_abi::{EINVAL, ERANGE, Errno};
+use kernel_abi::{EBADF, EINVAL, ERANGE, ESPIPE, Errno};
 
 use crate::access::{CwdAccess, FileAccess};
 use crate::ptr::UserspaceMutPtr;
+
+/// Whence values for lseek
+pub const SEEK_SET: i32 = 0;
+pub const SEEK_CUR: i32 = 1;
+pub const SEEK_END: i32 = 2;
 
 pub fn sys_getcwd<Cx: CwdAccess>(
     cx: &Cx,
@@ -40,6 +45,22 @@ pub fn sys_read<Cx: FileAccess>(cx: &Cx, fildes: Cx::Fd, buf: &mut [u8]) -> Resu
 
 pub fn sys_write<Cx: FileAccess>(cx: &Cx, fildes: Cx::Fd, buf: &[u8]) -> Result<usize, Errno> {
     cx.write(fildes, buf).map_err(|_| EINVAL)
+}
+
+/// Close a file descriptor.
+pub fn sys_close<Cx: FileAccess>(cx: &Cx, fildes: Cx::Fd) -> Result<usize, Errno> {
+    cx.close(fildes).map_err(|_| EBADF)?;
+    Ok(0)
+}
+
+/// Reposition read/write file offset.
+pub fn sys_lseek<Cx: FileAccess>(
+    cx: &Cx,
+    fildes: Cx::Fd,
+    offset: i64,
+    whence: i32,
+) -> Result<usize, Errno> {
+    cx.lseek(fildes, offset, whence).map_err(|_| ESPIPE)
 }
 
 #[cfg(test)]

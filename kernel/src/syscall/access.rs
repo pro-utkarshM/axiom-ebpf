@@ -2,6 +2,7 @@ use alloc::sync::Arc;
 use core::sync::atomic::Ordering::Relaxed;
 
 use kernel_syscall::access::{CwdAccess, FileAccess};
+use kernel_syscall::stat::{mode, StatAccess, UserStat};
 use kernel_vfs::node::VfsNode;
 use kernel_vfs::path::AbsolutePath;
 use spin::rwlock::RwLock;
@@ -51,6 +52,7 @@ impl FileAccess for KernelAccess<'_> {
     type ReadError = ();
     type WriteError = ();
     type CloseError = ();
+    type LseekError = ();
 
     fn file_info(&self, path: &AbsolutePath) -> Option<Self::FileInfo> {
         Some(FileInfo {
@@ -103,6 +105,78 @@ impl FileAccess for KernelAccess<'_> {
     fn close(&self, fd: Self::Fd) -> Result<(), ()> {
         self.process.file_descriptors().write().remove(&fd);
         Ok(())
+    }
+
+    fn lseek(&self, fd: Self::Fd, offset: i64, whence: i32) -> Result<usize, ()> {
+        use kernel_syscall::unistd::{SEEK_CUR, SEEK_END, SEEK_SET};
+        use kernel_vfs::Stat;
+
+        let fds = self.process.file_descriptors();
+        let guard = fds.read();
+
+        let desc = guard.get(&fd).ok_or(())?;
+        let ofd = desc.file_description();
+        let current_pos = ofd.position().load(Relaxed);
+
+        // Get file size for SEEK_END
+        let file_size = {
+            let mut stat = Stat::default();
+            ofd.stat(&mut stat).map_err(|_| ())?;
+            stat.size as u64
+        };
+
+        let new_pos = match whence {
+            SEEK_SET => {
+                if offset < 0 {
+                    return Err(());
+                }
+                offset as u64
+            }
+            SEEK_CUR => {
+                if offset < 0 {
+                    current_pos.saturating_sub((-offset) as u64)
+                } else {
+                    current_pos.saturating_add(offset as u64)
+                }
+            }
+            SEEK_END => {
+                if offset < 0 {
+                    file_size.saturating_sub((-offset) as u64)
+                } else {
+                    file_size.saturating_add(offset as u64)
+                }
+            }
+            _ => return Err(()),
+        };
+
+        ofd.position().store(new_pos, Relaxed);
+        Ok(new_pos.into_usize())
+    }
+}
+
+impl StatAccess for KernelAccess<'_> {
+    type StatError = ();
+
+    fn fstat(&self, fd: Self::Fd) -> Result<UserStat, Self::StatError> {
+        use kernel_vfs::Stat;
+
+        let fds = self.process.file_descriptors();
+        let guard = fds.read();
+
+        let desc = guard.get(&fd).ok_or(())?;
+        let ofd = desc.file_description();
+
+        let mut vfs_stat = Stat::default();
+        ofd.stat(&mut vfs_stat).map_err(|_| ())?;
+
+        // Convert VFS stat to userspace stat structure
+        let mut user_stat = UserStat::default();
+        user_stat.st_size = vfs_stat.size as i64;
+        user_stat.st_mode = mode::S_IFREG | 0o644; // Regular file with rw-r--r-- permissions
+        user_stat.st_blksize = 4096; // Common block size
+        user_stat.st_blocks = (vfs_stat.size as i64 + 511) / 512; // Number of 512B blocks
+
+        Ok(user_stat)
     }
 }
 
