@@ -29,6 +29,7 @@ unsafe extern "C" {
     fn bpf_map_lookup_elem(map_id: u32, key: *const u8) -> *mut u8;
     fn bpf_map_update_elem(map_id: u32, key: *const u8, value: *const u8, flags: u64) -> i32;
     fn bpf_map_delete_elem(map_id: u32, key: *const u8) -> i32;
+    fn bpf_ringbuf_output(map_id: u32, data: *const u8, size: u64, flags: u64) -> i64;
 }
 
 /// BPF bytecode interpreter.
@@ -267,6 +268,14 @@ impl<P: PhysicalProfile> Interpreter<P> {
 
                 // bpf_map_delete_elem
                 5 => Ok(bpf_map_delete_elem(args[0] as u32, args[1] as *const u8) as u64),
+
+                // bpf_ringbuf_output
+                6 => Ok(bpf_ringbuf_output(
+                    args[0] as u32,
+                    args[1] as *const u8,
+                    args[2],
+                    args[3],
+                ) as u64),
 
                 // Unknown helper
                 _ => Err(BpfError::InvalidHelper(helper_id)),
@@ -525,6 +534,17 @@ mod helpers_stub {
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_map_delete_elem(_map_id: u32, _key: *const u8) -> i32 {
         TEST_MAP_VALUE.store(0, Ordering::SeqCst);
+        0
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn bpf_ringbuf_output(
+        _map_id: u32,
+        _data: *const u8,
+        _size: u64,
+        _flags: u64,
+    ) -> i64 {
+        // Test stub: always succeed
         0
     }
 

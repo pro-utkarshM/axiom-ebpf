@@ -56,6 +56,16 @@ pub extern "C" fn bpf_map_delete_elem(_map_id: u32, _key: *const u8) -> i32 {
     0
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_ringbuf_output(
+    _map_id: u32,
+    _data: *const u8,
+    _size: u64,
+    _flags: u64,
+) -> i64 {
+    0
+}
+
 #[test]
 fn semantic_return_constant() {
     // Program: return 42
