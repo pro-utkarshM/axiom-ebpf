@@ -11,6 +11,7 @@ pub trait FileAccess {
     type ReadError;
     type WriteError;
     type CloseError;
+    type LseekError;
 
     fn file_info(&self, path: &AbsolutePath) -> Option<Self::FileInfo>;
 
@@ -21,6 +22,8 @@ pub trait FileAccess {
     fn write(&self, fd: Self::Fd, buf: &[u8]) -> Result<usize, Self::WriteError>;
 
     fn close(&self, fd: Self::Fd) -> Result<(), Self::CloseError>;
+
+    fn lseek(&self, fd: Self::Fd, offset: i64, whence: i32) -> Result<usize, Self::LseekError>;
 }
 
 #[cfg(test)]
@@ -111,6 +114,7 @@ pub mod testing {
         type ReadError = ();
         type WriteError = ();
         type CloseError = ();
+        type LseekError = ();
 
         fn file_info(&self, path: &AbsolutePath) -> Option<Self::FileInfo> {
             let guard = self.lock();
@@ -174,6 +178,42 @@ pub mod testing {
 
             if guard.open_fds.remove(&fd).is_some() {
                 Ok(())
+            } else {
+                Err(())
+            }
+        }
+
+        fn lseek(&self, fd: Self::Fd, offset: i64, whence: i32) -> Result<usize, ()> {
+            use crate::unistd::{SEEK_CUR, SEEK_END, SEEK_SET};
+
+            let guard = self.lock();
+
+            if let Some(file) = guard.open_fds.get(&fd) {
+                let data = file.data.read();
+                let file_len = data.len();
+                let current_pos = fd.position.load(Relaxed);
+
+                let new_pos = match whence {
+                    SEEK_SET => offset as usize,
+                    SEEK_CUR => {
+                        if offset < 0 {
+                            current_pos.saturating_sub((-offset) as usize)
+                        } else {
+                            current_pos.saturating_add(offset as usize)
+                        }
+                    }
+                    SEEK_END => {
+                        if offset < 0 {
+                            file_len.saturating_sub((-offset) as usize)
+                        } else {
+                            file_len.saturating_add(offset as usize)
+                        }
+                    }
+                    _ => return Err(()),
+                };
+
+                fd.position.store(new_pos, Relaxed);
+                Ok(new_pos)
             } else {
                 Err(())
             }
