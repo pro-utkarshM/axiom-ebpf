@@ -27,6 +27,7 @@ fn hlt() {
 
 #[cfg(target_arch = "x86_64")]
 mod access;
+mod validation;
 pub mod bpf;
 
 #[must_use]

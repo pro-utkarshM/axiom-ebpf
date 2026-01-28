@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use core::mem::size_of;
 
 use kernel_abi::{
     BPF_MAP_CREATE, BPF_MAP_DELETE_ELEM, BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM, BPF_PROG_ATTACH,
@@ -7,6 +8,7 @@ use kernel_abi::{
 use kernel_bpf::bytecode::insn::BpfInsn;
 
 use crate::BPF_MANAGER;
+use super::validation::{copy_from_userspace, read_userspace_slice, copy_to_userspace};
 
 pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
     // Basic permissions check would go here
@@ -16,10 +18,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
     match cmd_u32 {
         BPF_MAP_CREATE => {
             log::info!("sys_bpf: MAP_CREATE");
-            if attr_ptr == 0 {
-                return -1; // EFAULT
-            }
-            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
+            let attr = match copy_from_userspace::<BpfAttr>(attr_ptr) {
+                Ok(a) => a,
+                Err(_) => return -1,
+            };
 
             // For MAP_CREATE, fields are:
             // prog_type -> map_type
@@ -48,10 +50,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
         }
         BPF_MAP_LOOKUP_ELEM => {
             log::debug!("sys_bpf: MAP_LOOKUP_ELEM");
-            if attr_ptr == 0 {
-                return -1;
-            }
-            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
+            let attr = match copy_from_userspace::<BpfAttr>(attr_ptr) {
+                Ok(a) => a,
+                Err(_) => return -1,
+            };
 
             let map_id = attr.map_fd;
             let key_ptr = attr.key as *const u8;
@@ -65,12 +67,16 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
                 let mgr = manager.lock();
                 // Get key size from map (for now, assume 4 bytes)
                 let key_size = 4usize; // TODO: get from map def
-                let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
+                
+                let key = match read_userspace_slice(key_ptr as usize, key_size) {
+                    Ok(k) => k,
+                    Err(_) => return -1,
+                };
 
-                if let Some(value) = mgr.map_lookup(map_id, key) {
+                if let Some(value) = mgr.map_lookup(map_id, &key) {
                     // Copy value to user buffer
-                    unsafe {
-                        core::ptr::copy_nonoverlapping(value.as_ptr(), value_ptr, value.len());
+                    if copy_to_userspace(value_ptr as usize, &value).is_err() {
+                        return -1;
                     }
                     0
                 } else {
@@ -82,10 +88,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
         }
         BPF_MAP_UPDATE_ELEM => {
             log::debug!("sys_bpf: MAP_UPDATE_ELEM");
-            if attr_ptr == 0 {
-                return -1;
-            }
-            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
+            let attr = match copy_from_userspace::<BpfAttr>(attr_ptr) {
+                Ok(a) => a,
+                Err(_) => return -1,
+            };
 
             let map_id = attr.map_fd;
             let key_ptr = attr.key as *const u8;
@@ -101,10 +107,19 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
                 // For now, assume fixed sizes (TODO: get from map def)
                 let key_size = 4usize;
                 let value_size = 8usize;
-                let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
-                let value = unsafe { core::slice::from_raw_parts(value_ptr, value_size) };
 
-                match mgr.map_update(map_id, key, value, flags) {
+                
+                let key = match read_userspace_slice(key_ptr as usize, key_size) {
+                    Ok(k) => k,
+                    Err(_) => return -1,
+                };
+                
+                let value = match read_userspace_slice(value_ptr as usize, value_size) {
+                    Ok(v) => v,
+                    Err(_) => return -1,
+                };
+
+                match mgr.map_update(map_id, &key, &value, flags) {
                     Ok(_) => 0,
                     Err(e) => {
                         log::error!("sys_bpf: MAP_UPDATE failed: {}", e);
@@ -117,10 +132,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
         }
         BPF_MAP_DELETE_ELEM => {
             log::debug!("sys_bpf: MAP_DELETE_ELEM");
-            if attr_ptr == 0 {
-                return -1;
-            }
-            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
+            let attr = match copy_from_userspace::<BpfAttr>(attr_ptr) {
+                Ok(a) => a,
+                Err(_) => return -1,
+            };
 
             let map_id = attr.map_fd;
             let key_ptr = attr.key as *const u8;
@@ -132,9 +147,13 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
             if let Some(manager) = BPF_MANAGER.get() {
                 let mgr = manager.lock();
                 let key_size = 4usize;
-                let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
+                
+                let key = match read_userspace_slice(key_ptr as usize, key_size) {
+                    Ok(k) => k,
+                    Err(_) => return -1,
+                };
 
-                match mgr.map_delete(map_id, key) {
+                match mgr.map_delete(map_id, &key) {
                     Ok(_) => 0,
                     Err(_) => -2, // ENOENT
                 }
@@ -144,10 +163,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
         }
         BPF_PROG_ATTACH => {
             log::info!("sys_bpf: PROG_ATTACH");
-            if attr_ptr == 0 {
-                return -1;
-            }
-            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
+            let attr = match copy_from_userspace::<BpfAttr>(attr_ptr) {
+                Ok(a) => a,
+                Err(_) => return -1,
+            };
 
             let attach_type = attr.attach_btf_id;
             let prog_id = attr.attach_prog_fd;
@@ -170,11 +189,10 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
         BPF_PROG_LOAD => {
             log::info!("sys_bpf: PROG_LOAD");
 
-            if attr_ptr == 0 {
-                return -1;
-            }
-
-            let attr = unsafe { &*(attr_ptr as *const BpfAttr) };
+            let attr = match copy_from_userspace::<BpfAttr>(attr_ptr) {
+                Ok(a) => a,
+                Err(_) => return -1,
+            };
 
             let insn_cnt = attr.insn_cnt as usize;
             let insns_ptr = attr.insns as *const BpfInsn;
@@ -191,10 +209,20 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
             log::info!("sys_bpf: loading {} instructions", insn_cnt);
 
             let mut insns = Vec::with_capacity(insn_cnt);
+            // safe cast because we validate the pointer below
+            let insns_bytes_ptr = insns_ptr as usize; 
+            
+            // Validate the entire instruction buffer first
+            if let Err(_) = read_userspace_slice(insns_bytes_ptr, insn_cnt * size_of::<BpfInsn>()) {
+                log::error!("sys_bpf: invalid instruction buffer");
+                return -1;
+            }
+
             for i in 0..insn_cnt {
-                unsafe {
-                    insns.push(*insns_ptr.add(i));
-                }
+                 match copy_from_userspace::<BpfInsn>(insns_bytes_ptr + i * size_of::<BpfInsn>()) {
+                     Ok(insn) => insns.push(insn),
+                     Err(_) => return -1,
+                 }
             }
 
             if let Some(manager) = BPF_MANAGER.get() {
