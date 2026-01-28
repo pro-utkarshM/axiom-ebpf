@@ -117,6 +117,12 @@ jobs:
       - name: Run semantic tests with embedded-profile
         run: cargo test --no-default-features --features embedded-profile -p kernel_bpf --test semantic_consistency
 
+      - name: Run integration tests with cloud-profile
+        run: cargo test --no-default-features --features cloud-profile -p kernel_bpf --test bpf_integration
+
+      - name: Run integration tests with embedded-profile
+        run: cargo test --no-default-features --features embedded-profile -p kernel_bpf --test bpf_integration
+
   format-check:
     name: Format Check
     runs-on: ubuntu-latest
