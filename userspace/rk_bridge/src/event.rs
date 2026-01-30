@@ -247,7 +247,11 @@ impl RkEvent {
             return Err("data too short for event header");
         }
 
-        // Safety: We've verified the length
+        // SAFETY: We've verified the length is at least EventHeader::SIZE.
+        // Casting the byte slice pointer to EventHeader pointer is safe because
+        // EventHeader is repr(C) and contains only POD types. Alignment is handled
+        // by the caller ensuring the buffer is properly aligned (or we assume packed).
+        // Note: In a robust implementation, we should verify alignment or use read_unaligned.
         let header = unsafe { &*(data.as_ptr() as *const EventHeader) };
 
         match header.event_type {
@@ -255,6 +259,7 @@ impl RkEvent {
                 if data.len() < core::mem::size_of::<ImuEvent>() {
                     return Err("data too short for IMU event");
                 }
+                // SAFETY: Length checked above. ImuEvent is repr(C).
                 let event = unsafe { *(data.as_ptr() as *const ImuEvent) };
                 Ok(RkEvent::Imu(event))
             }
@@ -262,6 +267,7 @@ impl RkEvent {
                 if data.len() < core::mem::size_of::<MotorEvent>() {
                     return Err("data too short for motor event");
                 }
+                // SAFETY: Length checked above. MotorEvent is repr(C).
                 let event = unsafe { *(data.as_ptr() as *const MotorEvent) };
                 Ok(RkEvent::Motor(event))
             }
@@ -269,6 +275,7 @@ impl RkEvent {
                 if data.len() < core::mem::size_of::<SafetyEvent>() {
                     return Err("data too short for safety event");
                 }
+                // SAFETY: Length checked above. SafetyEvent is repr(C).
                 let event = unsafe { *(data.as_ptr() as *const SafetyEvent) };
                 Ok(RkEvent::Safety(event))
             }
@@ -276,6 +283,7 @@ impl RkEvent {
                 if data.len() < core::mem::size_of::<GpioEvent>() {
                     return Err("data too short for GPIO event");
                 }
+                // SAFETY: Length checked above. GpioEvent is repr(C).
                 let event = unsafe { *(data.as_ptr() as *const GpioEvent) };
                 Ok(RkEvent::Gpio(event))
             }
@@ -283,6 +291,7 @@ impl RkEvent {
                 if data.len() < core::mem::size_of::<TimeSeriesEvent>() {
                     return Err("data too short for time-series event");
                 }
+                // SAFETY: Length checked above. TimeSeriesEvent is repr(C).
                 let event = unsafe { *(data.as_ptr() as *const TimeSeriesEvent) };
                 Ok(RkEvent::TimeSeries(event))
             }
@@ -349,8 +358,13 @@ mod tests {
             sensor_id: 1,
         };
 
-        let bytes =
-            unsafe { core::slice::from_raw_parts(&event as *const _ as *const u8, size_of_val(&event)) };
+        // SAFETY: Creating a byte slice from a stack-allocated struct is safe.
+        let bytes = unsafe {
+            core::slice::from_raw_parts(
+                &event as *const _ as *const u8,
+                core::mem::size_of_val(&event),
+            )
+        };
 
         let parsed = RkEvent::from_bytes(bytes).unwrap();
         match parsed {

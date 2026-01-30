@@ -98,6 +98,8 @@ pub(in crate::mem) fn init(address_space: &AddressSpace, usable_physical_memory_
         )
         .expect("should be able to map heap");
 
+    // SAFETY: We are initializing the global allocator with a valid memory range
+    // that has just been mapped. This is called only once during initialization.
     unsafe {
         ALLOCATOR
             .lock()
@@ -132,6 +134,8 @@ pub(in crate::mem) fn init_stage2() {
         )
         .expect("should be able to map more heap");
 
+    // SAFETY: We are extending the global allocator with a new memory range
+    // that has just been mapped. The range is contiguous with the previous heap.
     unsafe {
         ALLOCATOR.lock().extend(total_heap_size - initial_heap_size);
     }

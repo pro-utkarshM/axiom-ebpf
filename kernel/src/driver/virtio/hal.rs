@@ -32,6 +32,9 @@ pub fn transport(addr: PciAddress, cam: Box<dyn ConfigurationAccess>) -> PciTran
 
 pub struct HalImpl;
 
+// SAFETY: HalImpl implements the VirtIO HAL trait using the kernel's memory management
+// subsystems (PhysicalMemory and AddressSpace). It guarantees correct DMA allocation
+// and address translation for VirtIO drivers.
 unsafe impl Hal for HalImpl {
     fn dma_alloc(pages: usize, _: BufferDirection) -> (u64, NonNull<u8>) {
         let frames = PhysicalMemory::allocate_frames(pages).unwrap();
@@ -48,6 +51,9 @@ unsafe impl Hal for HalImpl {
         (frames.start.start_address().as_u64(), addr)
     }
 
+    // SAFETY: We are deallocating memory previously allocated by dma_alloc.
+    // The caller guarantees that paddr, vaddr, and pages match the allocation.
+    // The Hal trait contract requires the caller to be correct.
     unsafe fn dma_dealloc(paddr: u64, vaddr: NonNull<u8>, pages: usize) -> i32 {
         let frames = PhysFrameRangeInclusive::<Size4KiB> {
             start: PhysFrame::containing_address(PhysAddr::new(paddr)),
@@ -59,6 +65,8 @@ unsafe impl Hal for HalImpl {
             VirtAddr::from_ptr(vaddr.as_ptr()),
             pages.into_u64() * Size4KiB::SIZE,
         );
+        // SAFETY: We are unmapping and deallocating memory previously allocated by dma_alloc.
+        // The caller guarantees that paddr, vaddr, and pages match the allocation.
         unsafe {
             AddressSpace::kernel().unmap_range::<Size4KiB>(&segment, |_| {});
             assert!(VirtualMemoryHigherHalf.release(segment));
@@ -68,6 +76,8 @@ unsafe impl Hal for HalImpl {
         0
     }
 
+    // SAFETY: We map the physical address to a virtual address. The caller guarantees
+    // the physical address is valid for MMIO.
     unsafe fn mmio_phys_to_virt(paddr: u64, size: usize) -> NonNull<u8> {
         let frames = PhysFrameRangeInclusive::<Size4KiB> {
             start: PhysFrame::containing_address(PhysAddr::new(paddr)),
@@ -88,6 +98,8 @@ unsafe impl Hal for HalImpl {
         NonNull::new(segment.start.as_mut_ptr::<u8>()).unwrap()
     }
 
+    // SAFETY: We translate a virtual address to physical for DMA sharing.
+    // The buffer is valid as ensured by the caller/Rust typing.
     unsafe fn share(buffer: NonNull<[u8]>, _: BufferDirection) -> u64 {
         AddressSpace::kernel()
             .translate(VirtAddr::from_ptr(buffer.as_ptr()))
@@ -95,5 +107,6 @@ unsafe impl Hal for HalImpl {
             .as_u64()
     }
 
+    // SAFETY: No-op for this implementation.
     unsafe fn unshare(_: u64, _: NonNull<[u8]>, _: BufferDirection) {}
 }

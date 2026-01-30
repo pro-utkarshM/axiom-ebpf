@@ -31,6 +31,13 @@ pub fn reboot() -> ! {
 }
 
 /// PSCI system off
+///
+/// # Safety
+///
+/// This function invokes the PSCI `SYSTEM_OFF` function via HVC (Hypervisor Call).
+/// It causes an immediate system power-off and does not return. The caller must
+/// ensure the system is in a clean state (caches flushed, etc.) if required,
+/// although usually the firmware handles hardware shutdown.
 #[inline(always)]
 unsafe fn psci_system_off() {
     // PSCI 0.2+ function ID for SYSTEM_OFF
@@ -46,6 +53,12 @@ unsafe fn psci_system_off() {
 }
 
 /// PSCI system reset
+///
+/// # Safety
+///
+/// This function invokes the PSCI `SYSTEM_RESET` function via HVC.
+/// It causes an immediate system warm or cold reset and does not return.
+/// The caller must ensure the system is ready for a hard reset.
 #[inline(always)]
 unsafe fn psci_system_reset() {
     // PSCI 0.2+ function ID for SYSTEM_RESET

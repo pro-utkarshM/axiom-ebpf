@@ -29,6 +29,8 @@ pub static RECURSIVE_INDEX: OnceCell<usize> = OnceCell::uninit();
 
 pub fn init() {
     let (pt_vaddr, pt_frame) = make_mapping_recursive();
+    // SAFETY: We have just created the page table frame and mapped it recursively.
+    // pt_vaddr and pt_frame are valid and compatible.
     let address_space = unsafe { AddressSpace::create_from(pt_frame, pt_vaddr) };
     KERNEL_ADDRESS_SPACE.init_once(|| address_space);
 }
@@ -41,6 +43,8 @@ fn make_mapping_recursive() -> (VirtAddr, PhysFrame) {
 
     let (level_4_table, level_4_table_frame) = {
         let frame = PhysicalMemory::allocate_frame().unwrap();
+        // SAFETY: We allocated a fresh frame, so we have exclusive access.
+        // The HHDM offset allows us to access physical memory at this virtual address.
         let pt = unsafe {
             &mut *VirtAddr::new(frame.start_address().as_u64() + hhdm_offset)
                 .as_mut_ptr::<PageTable>()
@@ -49,6 +53,8 @@ fn make_mapping_recursive() -> (VirtAddr, PhysFrame) {
         (pt, frame)
     };
 
+    // SAFETY: We are creating an OffsetPageTable using the current active page table (Cr3).
+    // The HHDM offset is valid as guaranteed by the bootloader/limine.
     let mut current_pt = unsafe {
         OffsetPageTable::new(
             &mut *VirtAddr::new(Cr3::read().0.start_address().as_u64() + hhdm_offset)
@@ -59,11 +65,14 @@ fn make_mapping_recursive() -> (VirtAddr, PhysFrame) {
 
     let mut new_pt = {
         struct Offset(u64);
+        // SAFETY: The frame_to_pointer implementation uses the fixed HHDM offset
+        // which maps all physical memory.
         unsafe impl PageTableFrameMapping for Offset {
             fn frame_to_pointer(&self, frame: PhysFrame) -> *mut PageTable {
                 VirtAddr::new(frame.start_address().as_u64() + self.0).as_mut_ptr::<PageTable>()
             }
         }
+        // SAFETY: Creating a MappedPageTable with our new level 4 table and the valid offset mapper.
         unsafe { MappedPageTable::new(level_4_table, Offset(hhdm_offset)) }
     };
 
@@ -143,6 +152,8 @@ fn make_mapping_recursive() -> (VirtAddr, PhysFrame) {
         });
 
     info!("switching to recursive mapping");
+    // SAFETY: We have constructed a valid level 4 page table with all necessary mappings
+    // (kernel, HHDM, modules) and a recursive mapping. We are switching CR3 to use it.
     unsafe {
         let cr3_flags = Cr3::read().1;
         Cr3::write(level_4_table_frame, cr3_flags);
@@ -202,12 +213,16 @@ fn remap(
             {
                 let page = Page::<Size4KiB>::containing_address(current_addr + off);
                 let f1 = PhysFrame::containing_address(f.start_address() + offset + off);
+                // SAFETY: We are splitting a huge page into 4KiB pages. The target frames exist.
+                // We are updating the new page table which is not yet active.
                 unsafe {
                     let _ = new_pt.map_to(page, f1, flags, &mut PhysicalMemory).unwrap();
                 }
                 off += page.size();
             }
         } else {
+            // SAFETY: We are mapping pages in the new page table. The frames are valid as they
+            // were obtained from translation of the current page table.
             unsafe {
                 match frame {
                     MappedFrame::Size4KiB(f) => {
@@ -299,6 +314,9 @@ impl AddressSpace {
             .expect("address space not initialized")
     }
 
+    /// # Safety
+    /// The level4_frame must be a valid physical frame containing a top-level page table.
+    /// The level4_vaddr must be the virtual address where that frame is mapped.
     unsafe fn create_from(level4_frame: PhysFrame, level4_vaddr: VirtAddr) -> Self {
         Self {
             level4_frame,
@@ -333,7 +351,11 @@ impl AddressSpace {
             )
             .unwrap();
 
+        // SAFETY: We have reserved segments in higher-half virtual memory.
+        // We are casting the pointers to PageTable which matches the underlying data structure.
         let new_page_table = unsafe { &mut *new_pt_segment.start.as_mut_ptr::<PageTable>() };
+        // SAFETY: We have reserved segments in higher-half virtual memory.
+        // We are casting the pointers to PageTable which matches the underlying data structure.
         let old_page_table = unsafe { &*old_pt_segment.start.as_mut_ptr::<PageTable>() };
 
         new_page_table.zero();
@@ -357,6 +379,8 @@ impl AddressSpace {
             .unmap(new_pt_page)
             .expect("page should be mapped");
 
+        // SAFETY: We have initialized the new page table frame and mapped it.
+        // We reuse the existing recursive mapping vaddr since we copied the recursive entry.
         unsafe { Self::create_from(new_frame, Self::kernel().inner.read().level4_vaddr) }
     }
 

@@ -41,6 +41,7 @@ pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
 
     // BSS is already cleared by assembly, but we define the symbols
     // for reference
+    // SAFETY: These symbols are defined in the linker script and represent valid memory ranges.
     unsafe extern "C" {
         static __bss_start: u8;
         static __bss_end: u8;
@@ -58,6 +59,7 @@ pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
     }
 
     // Jump to kernel main
+    // SAFETY: kernel_main is defined in the kernel crate and has the correct signature.
     unsafe extern "Rust" {
         fn kernel_main() -> !;
     }

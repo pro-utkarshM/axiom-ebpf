@@ -88,9 +88,14 @@ impl Scheduler {
     }
 }
 
-// SAFETY: CpuContext is only accessed from the CPU that owns it
-// (via TPIDR_EL1), and we ensure exclusive access via interrupt disabling.
+// SAFETY: CpuContext is `Sync` because it is only accessed by the CPU that owns it
+// (via TPIDR_EL1), or with external synchronization/interrupt disabling when accessed
+// from other contexts. The internal `UnsafeCell` is guarded by these mechanisms.
 unsafe impl Sync for CpuContext {}
+
+// SAFETY: CpuContext is `Send` because it contains plain data (usize) and the
+// `UnsafeCell` contents (Scheduler) are `Send`. Ownership transfer is valid,
+// although instances are typically static per-CPU.
 unsafe impl Send for CpuContext {}
 
 impl CpuContext {
@@ -125,6 +130,7 @@ impl CpuContext {
         unsafe { &*self.scheduler.get() }
     }
 }
+}
 
 // Per-CPU context storage (statically allocated for simplicity)
 static CPU_CONTEXTS: [CpuContext; MAX_CPUS] = [
@@ -149,7 +155,8 @@ pub fn init_current_cpu(cpu_id: usize) {
 
     // Store context pointer in TPIDR_EL1
     // SAFETY: Writing to TPIDR_EL1 is safe in EL1. We are storing the pointer to
-    // the persistent per-CPU context structure.
+    // the persistent static per-CPU context structure which remains valid for the
+    // entire lifetime of the kernel.
     unsafe {
         core::arch::asm!(
             "msr tpidr_el1, {}",

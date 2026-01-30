@@ -154,6 +154,7 @@ mod tests {
     #[test]
     fn test_mmap_anonymous_private() {
         let cx = Arc::new(TestMemoryAccess::new());
+        // SAFETY: creating a dummy pointer for testing purposes
         let addr = unsafe { UserspacePtr::try_from_usize(0).unwrap() };
 
         let result = sys_mmap(
@@ -175,6 +176,7 @@ mod tests {
     #[test]
     fn test_mmap_zero_size() {
         let cx = Arc::new(TestMemoryAccess::new());
+        // SAFETY: creating a dummy pointer for testing purposes
         let addr = unsafe { UserspacePtr::try_from_usize(0).unwrap() };
 
         let result = sys_mmap(
@@ -193,6 +195,7 @@ mod tests {
     #[test]
     fn test_mmap_not_anonymous() {
         let cx = Arc::new(TestMemoryAccess::new());
+        // SAFETY: creating a dummy pointer for testing purposes
         let addr = unsafe { UserspacePtr::try_from_usize(0).unwrap() };
 
         let result = sys_mmap(
@@ -211,6 +214,7 @@ mod tests {
     #[test]
     fn test_mmap_not_private() {
         let cx = Arc::new(TestMemoryAccess::new());
+        // SAFETY: creating a dummy pointer for testing purposes
         let addr = unsafe { UserspacePtr::try_from_usize(0).unwrap() };
 
         let result = sys_mmap(
@@ -230,6 +234,7 @@ mod tests {
     fn test_mmap_fixed() {
         let cx = Arc::new(TestMemoryAccess::new());
         let fixed_addr = 0x100000;
+        // SAFETY: creating a dummy pointer for testing purposes
         let addr = unsafe { UserspacePtr::try_from_usize(fixed_addr).unwrap() };
 
         let result = sys_mmap(
@@ -249,6 +254,7 @@ mod tests {
     #[test]
     fn test_mmap_write_exec_mutually_exclusive() {
         let cx = Arc::new(TestMemoryAccess::new());
+        // SAFETY: creating a dummy pointer for testing purposes
         let addr = unsafe { UserspacePtr::try_from_usize(0).unwrap() };
 
         let result = sys_mmap(

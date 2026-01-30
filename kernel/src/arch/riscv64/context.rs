@@ -1,6 +1,9 @@
 use crate::arch::traits::TaskContext;
 
 /// Switch from one task context to another
+// SAFETY: This function performs a raw context switch. The caller must ensure that 'from'
+// and 'to' are valid pointers to TaskContext structures. This involves inline assembly
+// that manipulates the stack pointer and callee-saved registers.
 pub unsafe fn switch_context(from: &mut TaskContext, to: &TaskContext) {
     // Save current context to 'from'
     // Load new context from 'to'

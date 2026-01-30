@@ -65,6 +65,7 @@ pub(crate) struct FxArea {
 
 impl Unpin for Task {}
 
+// SAFETY: Task implements Linked for the intrusive linked list used by the scheduler.
 unsafe impl Linked<Links<Self>> for Task {
     type Handle = Pin<Box<Self>>;
 
@@ -72,12 +73,19 @@ unsafe impl Linked<Links<Self>> for Task {
         NonNull::from(Box::leak(Pin::into_inner(r)))
     }
 
+    // SAFETY: Required by Linked trait. Reconstructs the handle from a raw pointer.
     unsafe fn from_ptr(ptr: NonNull<Self>) -> Self::Handle {
+        // SAFETY: We reconstruct the Pin<Box<Self>> from the raw pointer.
+        // The pointer must have been created by `into_ptr`.
         unsafe { Pin::new(Box::from_raw(ptr.as_ptr())) }
     }
 
+    // SAFETY: Required by Linked trait. Returns the pointer to the links field.
     unsafe fn links(ptr: NonNull<Self>) -> NonNull<Links<Self>> {
+        // SAFETY: We are accessing the links field of the task.
+        // The pointer is valid as guaranteed by the caller.
         let links = unsafe { &raw mut (*ptr.as_ptr()).links };
+        // SAFETY: The links field is not null.
         unsafe { NonNull::new_unchecked(links) }
     }
 }
@@ -147,6 +155,8 @@ impl Task {
         let task = ExecutionContext::load().current_task();
         trace!("exiting task {}", task.name());
 
+        // SAFETY: We are forcefully unlocking locks held by the exiting task to avoid deadlocks
+        // and cleaning up resources. This is done just before termination.
         unsafe {
             task.ustack.force_write_unlock();
             task.tls.force_write_unlock();
@@ -173,6 +183,7 @@ impl Task {
     /// # Safety
     /// The caller must ensure that this is only called once per core.
     #[must_use]
+    // SAFETY: Creates a fake task representing the current execution context.
     pub unsafe fn create_current() -> Self {
         let tid = TaskId::new();
         let name = format!("task-{tid}");

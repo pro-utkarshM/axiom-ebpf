@@ -476,8 +476,9 @@ impl<P: PhysicalProfile> BpfMap<P> for RingBufMap<P> {
     }
 }
 
-// Safety: RingBufMap uses atomic operations and mutex for thread safety
+// SAFETY: RingBufMap uses atomic operations and mutex for thread safety.
 unsafe impl<P: PhysicalProfile> Send for RingBufMap<P> {}
+// SAFETY: RingBufMap uses atomic operations and mutex for thread safety.
 unsafe impl<P: PhysicalProfile> Sync for RingBufMap<P> {}
 
 #[cfg(test)]

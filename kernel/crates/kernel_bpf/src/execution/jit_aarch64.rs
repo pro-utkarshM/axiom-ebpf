@@ -843,6 +843,8 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
     /// Get the address of a BPF helper function.
     fn get_helper_address(&self, helper_id: i32) -> Result<u64, Arm64JitError> {
         // These are the same helper IDs used in the interpreter
+        // SAFETY: These functions are defined in the kernel and linked into the final binary.
+        // They follow the C calling convention which matches the JIT's expectations.
         unsafe extern "C" {
             fn bpf_ktime_get_ns() -> u64;
             fn bpf_trace_printk(fmt: *const u8, size: u32) -> i32;

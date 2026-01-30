@@ -28,12 +28,14 @@ impl Architecture for Riscv64 {
     }
 
     fn enable_interrupts() {
+        // SAFETY: Enabling interrupts globally via CSR write.
         unsafe {
             riscv::register::sstatus::set_sie();
         }
     }
 
     fn disable_interrupts() {
+        // SAFETY: Disabling interrupts globally via CSR write.
         unsafe {
             riscv::register::sstatus::clear_sie();
         }
@@ -44,6 +46,7 @@ impl Architecture for Riscv64 {
     }
 
     fn wait_for_interrupt() {
+        // SAFETY: Executing wfi (wait for interrupt) is safe in kernel mode.
         unsafe {
             riscv::asm::wfi();
         }

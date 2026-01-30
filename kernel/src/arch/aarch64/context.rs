@@ -52,6 +52,9 @@ impl SwitchFrame {
 /// - `new_sp` points to a valid stack with a properly initialized SwitchFrame
 /// - `new_ttbr0` is either 0 or a valid page table physical address
 /// - This function is only called from the scheduler with proper locking
+///
+/// `naked` attribute is used because we strictly control the stack layout and
+/// register saving/restoring in assembly.
 #[unsafe(naked)]
 pub unsafe extern "C" fn switch_impl(_old_sp: *mut usize, _new_sp: usize, _new_ttbr0: usize) {
     // x0 = old_sp (pointer to save current SP)
@@ -155,6 +158,9 @@ pub fn init_task_stack(stack_top: usize, entry_point: usize, arg: usize) -> usiz
 ///
 /// This function must only be jumped to from a properly initialized SwitchFrame
 /// where x19 contains the task argument and x20 contains the entry point address.
+///
+/// `naked` attribute is used because this is a trampoline that doesn't follow
+/// standard C calling convention (reads from x19/x20 set up by init_task_stack).
 #[unsafe(naked)]
 pub unsafe extern "C" fn task_entry_trampoline() {
     core::arch::naked_asm!(

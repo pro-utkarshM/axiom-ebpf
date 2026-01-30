@@ -61,6 +61,12 @@ pub fn init() {
 }
 
 /// Handle IRQ interrupt (called from exception vector)
+///
+/// # Safety
+///
+/// This function is the IRQ exception handler entry point called from the vector table
+/// (via assembly stubs that save register state). It assumes the GIC is initialized
+/// and that it's safe to interact with hardware state. It must not unwind.
 #[unsafe(no_mangle)]
 pub extern "C" fn handle_irq() {
     // Acknowledge the interrupt and get its ID

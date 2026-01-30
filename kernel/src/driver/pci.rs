@@ -37,8 +37,11 @@ pub fn init() {
             .for_each(|driver| trace!("have pci driver: {}", driver.name));
     }
 
+    // SAFETY: PortCam::new() creates a new Port I/O based configuration access mechanism.
+    // This is safe in the kernel as we have privileges to access I/O ports.
     let cam = unsafe { PortCam::new() };
 
+    // SAFETY: iterate_all probes the PCI bus. It is safe to do this during initialization.
     unsafe { iterate_all(&cam) }.for_each(|addr| {
         let driver = PCI_DRIVERS
             .iter()
@@ -79,6 +82,12 @@ pub fn init() {
     });
 }
 
+/// Iterate over all PCI devices
+///
+/// # Safety
+///
+/// This function probes the PCI bus which involves reading from hardware registers.
+/// The caller must ensure that it is safe to access the PCI configuration space.
 unsafe fn iterate_all<C: ConfigurationAccess>(cam: &C) -> impl Iterator<Item = PciAddress> {
     (0..=u8::MAX)
         .flat_map(|bus| (0_u8..32).map(move |slot| (bus, slot)))
@@ -128,6 +137,8 @@ impl virtio_drivers::transport::pci::bus::ConfigurationAccess for VirtIoCam {
         )
     }
 
+    // SAFETY: Cloning the VirtIoCam is safe because it wraps the inner ConfigurationAccess in an Arc,
+    // so it just increments the reference count.
     unsafe fn unsafe_clone(&self) -> Self {
         Self(Arc::clone(&self.0))
     }

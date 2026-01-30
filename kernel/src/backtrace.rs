@@ -17,7 +17,9 @@ static BACKTRACE_CONTEXT: OnceCell<BacktraceContext> = OnceCell::uninit();
 
 struct BacktraceContext(Context<EndianSlice<'static, addr2line::gimli::NativeEndian>>);
 
+// SAFETY: The context holds read-only DWARF data which is safe to share between threads.
 unsafe impl Sync for BacktraceContext {}
+// SAFETY: The context holds read-only DWARF data which is safe to send between threads.
 unsafe impl Send for BacktraceContext {}
 
 /// Initializes the backtrace context that is required for backtraces
@@ -44,9 +46,9 @@ pub fn init() {
         let kernel_file = KERNEL_FILE_REQUEST.get_response().unwrap();
         let file_addr = VirtAddr::from_ptr(kernel_file.file().addr());
         let file_size = kernel_file.file().size().into_usize();
+        // SAFETY: we keep the part of limine's higher half mapping that contains
+        // the kernel file, so dereferencing that pointer is safe.
         let file_slice = unsafe {
-            // SAFETY: we keep the part of limine's higher half mapping that contains
-            // the kernel file, so dereferencing that pointer is safe.
             from_raw_parts(file_addr.as_mut_ptr::<u8>(), file_size)
         };
         let file = ElfBytes::<elf::endian::NativeEndian>::minimal_parse(file_slice).unwrap();
@@ -183,6 +185,8 @@ impl ReturnAddressIterator {
     #[cfg(target_arch = "x86_64")]
     pub fn new() -> Self {
         let mut current_bp: *const usize;
+        // SAFETY: We are reading the base pointer (rbp) register to start walking the stack.
+        // This is safe as we just read the register value.
         unsafe {
             asm!(
             "mov {bp}, rbp",
@@ -210,7 +214,12 @@ impl Iterator for ReturnAddressIterator {
         }
 
         let current_bp = self.current_bp;
+        // SAFETY: We assume the base pointer points to a valid stack frame where
+        // the first word is the previous base pointer and the second is the return address.
+        // This is the standard x86_64 stack frame layout.
         let next_bp = unsafe { *current_bp };
+        // SAFETY: We are reading the return address from the stack frame (offset 1 usize).
+        // The pointer arithmetic is valid because current_bp is a valid stack pointer.
         let instruction_pointer = unsafe { *(current_bp.add(1)) };
 
         self.current_bp = next_bp as *const usize;

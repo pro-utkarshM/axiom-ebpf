@@ -39,11 +39,18 @@ pub fn init_exception_vector() {
 }
 
 // Exception vector base (defined in assembly)
+// SAFETY: External symbol defined in assembly (exceptions.S).
 unsafe extern "C" {
     fn exception_vector_base();
 }
 
 /// Synchronous exception handler
+///
+/// # Safety
+///
+/// This function is the exception handler entry point for synchronous exceptions
+/// (SVC, Aborts, etc.). It is called from the vector table with register state
+/// saved on the stack. It must not unwind.
 #[unsafe(no_mangle)]
 pub extern "C" fn handle_sync_exception() {
     let esr: u64;
@@ -233,12 +240,22 @@ fn handle_data_abort(elr: u64, far: u64, iss: u64) {
 // (Re-exported through assembly vector table)
 
 /// FIQ handler
+///
+/// # Safety
+///
+/// This function is the Fast Interrupt Request (FIQ) handler.
+/// It is called from the vector table. It must not unwind.
 #[unsafe(no_mangle)]
 pub extern "C" fn handle_fiq() {
     log::warn!("FIQ received");
 }
 
 /// SError handler
+///
+/// # Safety
+///
+/// This function is the System Error (SError) handler.
+/// It is called from the vector table. It must not unwind.
 #[unsafe(no_mangle)]
 pub extern "C" fn handle_serror() {
     panic!("SError received");

@@ -4,6 +4,8 @@ use riscv::register::{scause, sepc, sstatus, stval, stvec};
 
 /// Initialize the trap vector
 pub fn init_trap_vector() {
+    // SAFETY: We are setting the STVEC (Supervisor Trap Vector Base Address) register
+    // to point to our trap handler function. This is essential for handling exceptions and interrupts.
     unsafe {
         // Set trap vector to direct mode
         stvec::write(trap_handler as usize, stvec::TrapMode::Direct);
@@ -44,6 +46,8 @@ fn handle_exception(exception: scause::Exception, sepc: usize, stval: usize) {
         Exception::Breakpoint => {
             log::warn!("Breakpoint at {:#x}", sepc);
             // Advance past the breakpoint instruction
+            // SAFETY: We encountered a breakpoint exception. We skip the ebreak instruction (2 bytes)
+            // to continue execution.
             unsafe {
                 sepc::write(sepc + 2); // ebreak is 2 bytes in compressed mode
             }

@@ -51,6 +51,8 @@ impl ExecutionContext {
         if ctx.is_null() {
             None
         } else {
+            // SAFETY: We checked that the pointer is not null.
+            // The KernelGsBase register contains a pointer to the thread-local ExecutionContext.
             Some(unsafe { &*ctx.as_ptr() })
         }
     }
@@ -88,11 +90,16 @@ impl ExecutionContext {
     /// The caller must ensure that only one mutable reference
     /// to the scheduler exists at any time.
     #[allow(clippy::mut_from_ref)]
+    // SAFETY: The caller must ensure exclusivity.
     pub unsafe fn scheduler_mut(&self) -> &mut Scheduler {
+        // SAFETY: The UnsafeCell access is guarded by the caller's guarantee of exclusivity.
         unsafe { &mut *self.scheduler.get() }
     }
 
     pub fn scheduler(&self) -> &Scheduler {
+        // SAFETY: We are accessing the scheduler immutably.
+        // This is safe because everything in the context is cpu-local and we are not
+        // concurrently modifying it from this thread unless via scheduler_mut which requires unsafe.
         unsafe {
             // SAFETY: this is safe because either:
             // * there is a mutable reference that is used for rescheduling, in which case we are

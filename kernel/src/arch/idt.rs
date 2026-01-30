@@ -92,6 +92,9 @@ pub fn create_idt() -> InterruptDescriptorTable {
 macro_rules! wrap {
     ($fn:ident => $w:ident) => {
         #[allow(clippy::missing_safety_doc)]
+        // SAFETY: This is a naked function used as an interrupt wrapper.
+        // It manually saves/restores registers and calls the handler.
+        // It is only called by the CPU via the IDT.
         #[unsafe(naked)]
         pub unsafe extern "sysv64" fn $w() {
             core::arch::naked_asm!(

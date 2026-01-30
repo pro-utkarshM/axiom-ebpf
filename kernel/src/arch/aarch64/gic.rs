@@ -240,6 +240,12 @@ pub fn set_priority(_irq: u32, _priority: u8) {}
 // 4. read_volatile/write_volatile ensure proper memory ordering for MMIO
 
 #[cfg(feature = "rpi5")]
+/// Read from GIC Distributor register
+///
+/// # Safety
+///
+/// Caller must ensure `offset` is a valid register offset within the GIC Distributor
+/// memory map. The GICD base address is assumed valid for the platform.
 unsafe fn read_gicd(offset: usize) -> u32 {
     // SAFETY: The caller ensures the offset is valid. Accessing GICD memory is safe
     // as it's a dedicated MMIO region.
@@ -247,6 +253,12 @@ unsafe fn read_gicd(offset: usize) -> u32 {
 }
 
 #[cfg(feature = "rpi5")]
+/// Write to GIC Distributor register
+///
+/// # Safety
+///
+/// Caller must ensure `offset` is a valid register offset within the GIC Distributor
+/// memory map. The GICD base address is assumed valid for the platform.
 unsafe fn write_gicd(offset: usize, value: u32) {
     // SAFETY: The caller ensures the offset is valid. Accessing GICD memory is safe
     // as it's a dedicated MMIO region.
@@ -256,6 +268,12 @@ unsafe fn write_gicd(offset: usize, value: u32) {
 }
 
 #[cfg(feature = "rpi5")]
+/// Read from GIC CPU Interface register
+///
+/// # Safety
+///
+/// Caller must ensure `offset` is a valid register offset within the GIC CPU Interface
+/// memory map. The GICC base address is assumed valid for the platform.
 unsafe fn read_gicc(offset: usize) -> u32 {
     // SAFETY: The caller ensures the offset is valid. Accessing GICC memory is safe
     // as it's a dedicated MMIO region.
@@ -263,6 +281,12 @@ unsafe fn read_gicc(offset: usize) -> u32 {
 }
 
 #[cfg(feature = "rpi5")]
+/// Write to GIC CPU Interface register
+///
+/// # Safety
+///
+/// Caller must ensure `offset` is a valid register offset within the GIC CPU Interface
+/// memory map. The GICC base address is assumed valid for the platform.
 unsafe fn write_gicc(offset: usize, value: u32) {
     // SAFETY: The caller ensures the offset is valid. Accessing GICC memory is safe
     // as it's a dedicated MMIO region.

@@ -171,6 +171,7 @@ impl RegisterFile {
     /// Caller must ensure they are not writing to R10 in a way that
     /// violates BPF semantics.
     #[inline]
+    // SAFETY: Accesses raw register values.
     pub unsafe fn set_unchecked(&mut self, reg: Register, value: u64) {
         self.values[reg as usize] = value;
     }

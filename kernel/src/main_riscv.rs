@@ -7,24 +7,28 @@ use log::{error, info};
 #[cfg(target_arch = "riscv64")]
 use riscv::asm::wfi;
 
+// SAFETY: This is the kernel entry point for RISC-V, exported with a specific name
+// so the bootloader can find it. The bootloader guarantees the hardware is in a
+// valid state upon entry.
 #[unsafe(export_name = "kernel_main")]
 unsafe extern "C" fn main() -> ! {
     info!("axiom-ebpf RISC-V Kernel");
     info!("=======================");
-    
+
     // Initialize basic kernel subsystems
     kernel::log::init();
-    
+
     info!("Log system initialized");
     info!("Memory management: TODO");
     info!("Interrupt handling: TODO");
     info!("Device drivers: TODO");
-    
+
     info!("Kernel initialization complete");
     info!("Entering idle loop...");
-    
+
     loop {
-        wfi();
+        // SAFETY: wfi (wait for interrupt) is safe to execute in the idle loop.
+        unsafe { wfi() };
     }
 }
 
@@ -44,6 +48,8 @@ fn rust_panic(info: &PanicInfo) -> ! {
     
     loop {
         #[cfg(target_arch = "riscv64")]
+        // SAFETY: wfi (wait for interrupt) is safe to execute in the panic loop
+        // to save power while halting the CPU.
         unsafe { wfi(); }
     }
 }

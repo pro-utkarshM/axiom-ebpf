@@ -13,6 +13,7 @@ pub fn exit(code: i32) -> ! {
             _mm_pause();
         }
         #[cfg(target_arch = "aarch64")]
+        // SAFETY: Safe to execute wfi (wait for interrupt) in the exit loop.
         unsafe {
             asm!("wfi");
         }
@@ -34,6 +35,8 @@ pub fn bpf(cmd: c_int, attr: *const u8, size: c_int) -> c_int {
 pub fn syscall0(n: usize) -> usize {
     let mut result;
     #[cfg(target_arch = "x86_64")]
+    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
         "mov rax, {n}",
@@ -44,6 +47,8 @@ pub fn syscall0(n: usize) -> usize {
         );
     }
     #[cfg(target_arch = "aarch64")]
+    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
             "svc #0",
@@ -58,6 +63,8 @@ pub fn syscall0(n: usize) -> usize {
 pub fn syscall1(n: usize, arg1: usize) -> usize {
     let mut result;
     #[cfg(target_arch = "x86_64")]
+    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
         "mov rax,{n}",
@@ -70,6 +77,8 @@ pub fn syscall1(n: usize, arg1: usize) -> usize {
         );
     }
     #[cfg(target_arch = "aarch64")]
+    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
             "svc #0",
@@ -85,6 +94,8 @@ pub fn syscall1(n: usize, arg1: usize) -> usize {
 pub fn syscall2(n: usize, arg1: usize, arg2: usize) -> usize {
     let mut result;
     #[cfg(target_arch = "x86_64")]
+    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
         "mov rax,{n}",
@@ -99,6 +110,8 @@ pub fn syscall2(n: usize, arg1: usize, arg2: usize) -> usize {
         );
     }
     #[cfg(target_arch = "aarch64")]
+    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
             "svc #0",
@@ -115,6 +128,8 @@ pub fn syscall2(n: usize, arg1: usize, arg2: usize) -> usize {
 pub fn syscall3(n: usize, arg1: usize, arg2: usize, arg3: usize) -> usize {
     let mut result;
     #[cfg(target_arch = "x86_64")]
+    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
         "mov rax,{n}",
@@ -131,6 +146,8 @@ pub fn syscall3(n: usize, arg1: usize, arg2: usize, arg3: usize) -> usize {
         );
     }
     #[cfg(target_arch = "aarch64")]
+    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
+    // The kernel syscall handler will validate arguments.
     unsafe {
         asm!(
             "svc #0",

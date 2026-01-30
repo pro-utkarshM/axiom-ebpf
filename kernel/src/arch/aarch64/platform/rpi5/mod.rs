@@ -23,6 +23,8 @@ use uart::Rp1Uart;
 
 /// Global UART instance for debug output
 pub static UART: Lazy<Mutex<Rp1Uart>> = Lazy::new(|| {
+    // SAFETY: We initialize the UART driver for the RPi5 platform.
+    // This is called once by Lazy initialization.
     let mut uart = unsafe { Rp1Uart::new() };
     uart.init();
     Mutex::new(uart)
@@ -30,6 +32,8 @@ pub static UART: Lazy<Mutex<Rp1Uart>> = Lazy::new(|| {
 
 /// Global PWM0 instance
 pub static PWM0: Lazy<Mutex<Rp1Pwm>> = Lazy::new(|| {
+    // SAFETY: We initialize the PWM0 driver for the RPi5 platform.
+    // This is called once by Lazy initialization.
     let pwm = unsafe { Rp1Pwm::pwm0() };
     pwm.init();
     Mutex::new(pwm)
@@ -37,6 +41,8 @@ pub static PWM0: Lazy<Mutex<Rp1Pwm>> = Lazy::new(|| {
 
 /// Global PWM1 instance
 pub static PWM1: Lazy<Mutex<Rp1Pwm>> = Lazy::new(|| {
+    // SAFETY: We initialize the PWM1 driver for the RPi5 platform.
+    // This is called once by Lazy initialization.
     let pwm = unsafe { Rp1Pwm::pwm1() };
     pwm.init();
     Mutex::new(pwm)

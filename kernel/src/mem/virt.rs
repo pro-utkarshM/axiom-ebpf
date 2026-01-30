@@ -224,6 +224,9 @@ impl VirtualMemoryAllocator for VirtualMemoryHigherHalf {
             .map(|()| OwnedSegment::new_ref(vmm(), segment))
     }
 
+    // SAFETY: This delegates to the inner VMM which ensures the segment is valid
+    // and was allocated by it. The caller must still respect the safety contract
+    // of not using the segment after release.
     unsafe fn release(&self, segment: Segment) -> bool {
         vmm().write().release(segment)
     }
@@ -245,6 +248,7 @@ impl VirtualMemoryAllocator for Arc<RwLock<VirtualMemoryManager>> {
             .map(|()| OwnedSegment::new_rc(self.clone(), segment))
     }
 
+    // SAFETY: This delegates to the inner VMM which ensures the segment is valid.
     unsafe fn release(&self, segment: Segment) -> bool {
         self.write().release(segment)
     }

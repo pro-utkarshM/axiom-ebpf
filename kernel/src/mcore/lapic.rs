@@ -29,6 +29,8 @@ impl DerefMut for Lapic {
 }
 
 pub fn init() -> Lapic {
+    // SAFETY: We are initializing the LAPIC, so reading the base address is necessary and safe
+    // as we trust the hardware/bootloader configuration at this stage.
     let xapic_base = unsafe { xapic_base() };
     let phys_addr = PhysAddr::new(xapic_base);
     let segment = VirtualMemoryHigherHalf
@@ -57,6 +59,7 @@ pub fn init() -> Lapic {
         .build()
         .expect("should be able to build lapic");
 
+    // SAFETY: Enabling the LAPIC is safe as we have configured it correctly above.
     unsafe {
         lapic.enable();
     }

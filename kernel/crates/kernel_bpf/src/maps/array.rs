@@ -179,6 +179,9 @@ impl<P: PhysicalProfile> BpfMap<P> for ArrayMap<P> {
         &self.def
     }
 
+    // SAFETY: This method returns a raw pointer to the map value.
+    // The caller must ensure that the pointer is not used after the map is modified or dropped.
+    // We rely on the caller to maintain the safety invariants required by the BpfMap trait.
     unsafe fn lookup_ptr(&self, key: &[u8]) -> Option<*mut u8> {
         let index = Self::parse_key(key)? as usize;
         let guard = self.data.read();

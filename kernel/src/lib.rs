@@ -41,13 +41,17 @@ static ALLOCATOR: DummyAllocator = DummyAllocator;
 struct DummyAllocator;
 
 #[cfg(not(target_arch = "x86_64"))]
+// SAFETY: This is a dummy allocator that refuses all allocations.
+// It satisfies the GlobalAlloc contract by always returning null (failure)
+// and doing nothing on deallocation.
 unsafe impl core::alloc::GlobalAlloc for DummyAllocator {
+    // SAFETY: Always returns null, complying with the allocation failure contract.
     unsafe fn alloc(&self, _layout: core::alloc::Layout) -> *mut u8 {
         core::ptr::null_mut()
     }
 
+    // SAFETY: No-op deallocation is safe because we never allocated anything.
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: core::alloc::Layout) {
-        // no-op
     }
 }
 #[cfg(target_arch = "x86_64")]

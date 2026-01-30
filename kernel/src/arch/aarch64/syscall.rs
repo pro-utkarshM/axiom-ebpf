@@ -25,6 +25,8 @@ pub fn handle_syscall() {
 }
 
 /// Syscall entry point with full context
+// SAFETY: This is the syscall handler entry point for AArch64.
+// It is called from the vector table with valid arguments in registers x0-x8.
 #[unsafe(no_mangle)]
 pub extern "C" fn syscall_handler_with_context(
     x0: usize,

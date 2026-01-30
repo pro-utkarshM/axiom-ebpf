@@ -23,6 +23,8 @@ use crate::bytecode::program::BpfProgram;
 use crate::bytecode::registers::{Register, RegisterFile};
 use crate::profile::{ActiveProfile, PhysicalProfile};
 
+// SAFETY: These functions are defined in the kernel and linked into the final binary.
+// They follow the C calling convention which matches the interpreter's expectations.
 unsafe extern "C" {
     fn bpf_ktime_get_ns() -> u64;
     fn bpf_trace_printk(fmt: *const u8, size: u32) -> i32;
@@ -359,6 +361,7 @@ impl<P: PhysicalProfile> Interpreter<P> {
 
         if addr >= ctx_addr && addr + size.size_bytes() as u64 <= ctx_addr + ctx_size {
             // SAFETY: We verified the address and size are within the bounds of the context struct.
+            // read_unaligned is used because BPF allows unaligned accesses.
             let value = unsafe {
                 match size {
                     MemSize::Byte => core::ptr::read_unaligned(addr as *const u8) as u64,
@@ -379,6 +382,7 @@ impl<P: PhysicalProfile> Interpreter<P> {
         if !ctx.data.is_null() && addr >= data_start && addr + size.size_bytes() as u64 <= data_end
         {
             // SAFETY: We verified the address and size are within the valid data range [data, data_end).
+            // read_unaligned is used because packet data may be unaligned.
             let value = unsafe {
                 match size {
                     MemSize::Byte => core::ptr::read_unaligned(addr as *const u8) as u64,
@@ -556,22 +560,26 @@ mod helpers_stub {
     // Simple test map: single u64 value at key 0
     static TEST_MAP_VALUE: AtomicU64 = AtomicU64::new(0);
 
+    // SAFETY: Test stub for BPF helper. Safe to be called from C/BPF context in tests.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_ktime_get_ns() -> u64 {
         0
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_trace_printk(_fmt: *const u8, _len: u32) -> i32 {
         0
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_map_lookup_elem(_map_id: u32, _key: *const u8) -> *mut u8 {
         // Return pointer to our test value
         TEST_MAP_VALUE.as_ptr() as *mut u8
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_map_update_elem(
         _map_id: u32,
@@ -581,18 +589,21 @@ mod helpers_stub {
     ) -> i32 {
         // Update test value from the 8-byte value pointer (handle null for tests)
         if !value.is_null() {
+            // SAFETY: In tests, we assume valid pointers are passed to helpers.
             let val = unsafe { *(value as *const u64) };
             TEST_MAP_VALUE.store(val, Ordering::SeqCst);
         }
         0
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_map_delete_elem(_map_id: u32, _key: *const u8) -> i32 {
         TEST_MAP_VALUE.store(0, Ordering::SeqCst);
         0
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_ringbuf_output(
         _map_id: u32,
@@ -604,16 +615,19 @@ mod helpers_stub {
         0
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_gpio_read(_pin: u32) -> i64 {
         0
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_gpio_write(_pin: u32, _value: u32) -> i64 {
         0
     }
 
+    // SAFETY: Test stub for BPF helper.
     #[unsafe(no_mangle)]
     pub extern "C" fn bpf_pwm_write(_pwm_id: u32, _channel: u32, _duty: u32) -> i64 {
         0

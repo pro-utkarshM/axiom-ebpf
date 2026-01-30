@@ -33,6 +33,8 @@ pub struct Scheduler {
 impl Scheduler {
     #[must_use]
     pub fn new_cpu_local() -> Self {
+        // SAFETY: We are creating a task representing the current CPU execution state.
+        // This is done once per CPU during initialization.
         let current_task = Box::pin(unsafe { Task::create_current() });
         Self {
             current_task,
@@ -43,6 +45,8 @@ impl Scheduler {
 
     /// # Safety
     /// Trivially unsafe. If you don't know why, please don't call this function.
+    // SAFETY: This function performs a context switch, which is inherently unsafe.
+    // It manipulates raw pointers and CPU state.
     pub unsafe fn reschedule(&mut self) {
         assert!(!interrupts::are_enabled());
 
@@ -74,9 +78,10 @@ impl Scheduler {
         if let Some(mut guard) = old_task.fx_area().try_write()
             && let Some(fx_area) = guard.as_mut()
         {
+            // SAFETY: We are disabling task switching (FPU context) via CR0.TS.
             unsafe { asm!("clts") };
+            // SAFETY: Safe because we hold a mutable reference to the fx_area
             unsafe {
-                // SAFETY: Safe because we hold a mutable reference to the fx_area
                 _fxsave(fx_area.start().as_mut_ptr::<u8>());
             }
         }
@@ -90,6 +95,9 @@ impl Scheduler {
         assert!(self.zombie_task.is_none());
         self.zombie_task = Some(old_task);
 
+        // SAFETY: Performing the actual context switch.
+        // We provide valid pointers to the old task's stack pointer location and the new task's stack.
+        // new_cr3_value is derived from the new task's address space.
         unsafe {
             Self::switch(
                 &mut *old_stack_ptr, // yay, UB (but how else are we going to do this?)
@@ -99,7 +107,9 @@ impl Scheduler {
         }
     }
 
+    // SAFETY: Low-level context switch implementation.
     unsafe fn switch(old_stack_ptr: &mut usize, new_stack_ptr: usize, new_cr3_value: usize) {
+        // SAFETY: Calling the assembly implementation of context switch.
         unsafe {
             switch_impl(
                 core::ptr::from_mut::<usize>(old_stack_ptr),

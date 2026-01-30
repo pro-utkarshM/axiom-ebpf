@@ -368,6 +368,9 @@ impl<P: PhysicalProfile> BpfMap<P> for HashMap<P> {
         &self.def
     }
 
+    /// # Safety
+    /// This method returns a raw pointer to the map value. The caller must ensure
+    /// that the pointer is not used after the map is modified or dropped.
     unsafe fn lookup_ptr(&self, key: &[u8]) -> Option<*mut u8> {
         let guard = self.storage.read();
         let slice = guard.lookup(key)?;

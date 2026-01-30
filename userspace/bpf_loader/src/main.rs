@@ -10,6 +10,7 @@ fn panic(_info: &PanicInfo) -> ! {
     exit(1)
 }
 
+// SAFETY: Entry point for the BPF loader. Called by the startup code.
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     let msg = b"Loading dynamic BPF program...\n";

@@ -9,6 +9,8 @@ const SBI_CONSOLE_PUTCHAR: usize = 1;
 
 fn sbi_call(eid: usize, fid: usize, arg0: usize) -> usize {
     let ret;
+    // SAFETY: We are making an ECALL to the SBI firmware.
+    // The registers are set up according to the SBI specification.
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -49,6 +51,8 @@ macro_rules! println {
 }
 
 #[no_mangle]
+// SAFETY: This is the entry point called by the bootloader/assembly stub.
+// We assume the hardware is in a clean state as guaranteed by the boot process.
 pub unsafe extern "C" fn _start_rust(hart_id: usize, dtb_addr: usize) -> ! {
     println!("axiom-ebpf RISC-V Kernel");
     println!("=======================");
@@ -75,6 +79,7 @@ pub unsafe extern "C" fn _start_rust(hart_id: usize, dtb_addr: usize) -> ! {
 fn panic(info: &PanicInfo) -> ! {
     println!("PANIC: {}", info);
     loop {
+        // SAFETY: Safe to halt the CPU in a panic loop.
         unsafe { riscv::asm::wfi(); }
     }
 }

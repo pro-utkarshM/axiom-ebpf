@@ -26,6 +26,9 @@ pub mod mtask;
 
 #[allow(clippy::missing_panics_doc)]
 pub fn init() {
+    // SAFETY: We need to get the mutable response to write to the `extra` field.
+    // This is done during initialization before other CPUs are fully brought up
+    // and accessing this data, ensuring exclusive access.
     let resp = unsafe {
         #[allow(static_mut_refs)] // we need this to set the `extra` field in the CPU structs
         MP_REQUEST.get_response_mut()
@@ -50,16 +53,22 @@ pub fn init() {
     });
 
     // then call the `cpu_init` function on the bootstrap CPU
+    // SAFETY: We are initializing the BSP (Bootstrap Processor).
+    // The pointer to the CPU struct is valid as it comes from Limine.
     unsafe { cpu_init_and_return(resp.cpus()[0]) };
 
     TaskCleanup::init();
 }
 
+// SAFETY: This function initializes a CPU. It is unsafe because it modifies global state
+// and performs low-level initialization (CR3, GDT, IDT, etc.).
 unsafe extern "C" fn cpu_init_and_return(cpu: &limine::mp::Cpu) {
     let cpu_arg = cpu.extra.load(Acquire);
     trace!("booting cpu {} with argument {}", cpu.id, cpu_arg,);
 
     // set the memory mapping that we got as a parameter
+    // SAFETY: We are loading the CR3 register with the value passed from the BSP.
+    // This switches the address space for this CPU.
     unsafe {
         let flags = Cr3Flags::from_bits_truncate(cpu_arg);
         Cr3::write(PhysFrame::containing_address(PhysAddr::new(cpu_arg)), flags);
@@ -69,6 +78,8 @@ unsafe extern "C" fn cpu_init_and_return(cpu: &limine::mp::Cpu) {
     let (gdt, sel) = create_gdt_and_tss();
     let gdt = Box::leak(Box::new(gdt));
     gdt.load();
+    // SAFETY: We are setting the segment registers to the selectors we just created.
+    // The GDT has been loaded, so these selectors are valid.
     unsafe {
         CS::set_reg(sel.kernel_code);
         DS::set_reg(sel.kernel_data);
@@ -101,7 +112,10 @@ unsafe extern "C" fn cpu_init_and_return(cpu: &limine::mp::Cpu) {
     interrupts::enable();
 }
 
+// SAFETY: This is the entry point for APs (Application Processors).
+// It initializes the CPU and then enters the idle loop.
 unsafe extern "C" fn cpu_init_and_idle(cpu: &limine::mp::Cpu) -> ! {
+    // SAFETY: Initialize the CPU. The pointer is valid from Limine.
     unsafe { cpu_init_and_return(cpu) };
 
     turn_idle()
@@ -121,6 +135,7 @@ pub fn turn_idle() -> ! {
 
 fn init_interrupts() {
     let mut io_apic = io_apic().lock();
+    // SAFETY: Initializing the IO APIC. The offset is chosen to avoid conflicts with exceptions.
     unsafe {
         const OFFSET: u8 = 32;
         io_apic.init(OFFSET);

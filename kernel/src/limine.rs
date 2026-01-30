@@ -6,49 +6,61 @@ use limine::request::{
 };
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests_start_marker")]
 pub static _START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests_end_marker")]
 pub static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static BASE_REVISION: BaseRevision = BaseRevision::with_revision(3);
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static BOOT_TIME: DateAtBootRequest = DateAtBootRequest::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static KERNEL_FILE_REQUEST: ExecutableFileRequest = ExecutableFileRequest::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static KERNEL_ADDRESS_REQUEST: ExecutableAddressRequest = ExecutableAddressRequest::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static RSDP_REQUEST: RsdpRequest = RsdpRequest::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static STACK_SIZE_REQUEST: StackSizeRequest = StackSizeRequest::new().with_size(262_144);
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static MODULE_REQUEST: ModuleRequest = ModuleRequest::new();
 
 #[used]
+// SAFETY: The Limine protocol requires specific sections for requests to be found by the bootloader.
 #[unsafe(link_section = ".requests")]
 pub static mut MP_REQUEST: MpRequest = MpRequest::new();

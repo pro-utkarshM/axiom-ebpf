@@ -93,10 +93,14 @@ impl MemoryRegion {
     }
 
     pub fn as_slice(&self) -> &[u8] {
+        // SAFETY: The memory region represents valid memory with the tracked size.
+        // We assume the caller ensures the memory is accessible.
         unsafe { slice::from_raw_parts(self.addr().as_ptr(), self.size()) }
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        // SAFETY: The memory region represents valid memory with the tracked size.
+        // We assume the caller ensures the memory is accessible and we have exclusive access.
         unsafe { slice::from_raw_parts_mut(self.addr().as_mut_ptr(), self.size()) }
     }
 }

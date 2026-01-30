@@ -87,8 +87,12 @@ pub struct RingBufConsumer {
     _file: File,
 }
 
-// Safety: The ring buffer is thread-safe through atomic operations
+// SAFETY: The ring buffer is thread-safe through atomic operations on the control
+// structures (consumer_pos, producer_pos). The pointers are raw but valid for the
+// lifetime of the struct.
 unsafe impl Send for RingBufConsumer {}
+// SAFETY: The ring buffer is thread-safe through atomic operations on the control
+// structures.
 unsafe impl Sync for RingBufConsumer {}
 
 impl RingBufConsumer {
@@ -123,6 +127,9 @@ impl RingBufConsumer {
         let total_size = header_size + data_size;
 
         // Memory map the ring buffer
+        // SAFETY: We are mapping a file descriptor that represents a BPF ring buffer.
+        // We trust the kernel to provide a valid mapping. The size is calculated based
+        // on the header size and data size.
         let ptr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -139,6 +146,8 @@ impl RingBufConsumer {
         }
 
         let header = ptr as *mut RingBufHeader;
+        // SAFETY: The data region follows the header in the mapped memory.
+        // We verified the mapping size covers both header and data.
         let data = unsafe { (ptr as *const u8).add(header_size) };
 
         Ok(Self {
@@ -173,6 +182,7 @@ impl RingBufConsumer {
     ///
     /// Returns `None` if no events are available.
     pub fn read_event(&self) -> Option<Vec<u8>> {
+        // SAFETY: self.header points to valid mapped memory for the lifetime of self.
         let header = unsafe { &*self.header };
 
         let cons_pos = header.consumer_pos.load(Ordering::Acquire);
@@ -184,6 +194,8 @@ impl RingBufConsumer {
 
         // Read the record header
         let record_offset = (cons_pos as usize) & self.mask;
+        // SAFETY: We calculated record_offset using the mask, so it's within bounds.
+        // The memory is mapped and readable.
         let record_header = unsafe {
             let ptr = self.data.add(record_offset) as *const RecordHeader;
             *ptr
@@ -209,6 +221,8 @@ impl RingBufConsumer {
 
             // Handle wrap-around
             let first_chunk = std::cmp::min(data_len, self.data_size - data_offset);
+            // SAFETY: We are copying data from the memory mapped ring buffer to a vector.
+            // We ensure that we don't read past the bounds of the ring buffer using first_chunk calculation.
             unsafe {
                 std::ptr::copy_nonoverlapping(self.data.add(data_offset), data.as_mut_ptr(), first_chunk);
 
@@ -238,6 +252,7 @@ impl RingBufConsumer {
 
     /// Get the number of bytes available to read.
     pub fn available(&self) -> usize {
+        // SAFETY: self.header points to valid mapped memory for the lifetime of self.
         let header = unsafe { &*self.header };
         let cons_pos = header.consumer_pos.load(Ordering::Relaxed);
         let prod_pos = header.producer_pos.load(Ordering::Relaxed);
@@ -256,6 +271,8 @@ impl Drop for RingBufConsumer {
         let header_size = std::mem::size_of::<RingBufHeader>();
         let total_size = header_size + self.data_size;
 
+        // SAFETY: We are unmapping the memory we previously mapped in open().
+        // self.header points to the start of the mapping.
         unsafe {
             libc::munmap(self.header as *mut libc::c_void, total_size);
         }

@@ -44,6 +44,7 @@ pub fn init() {
 
     // Set up initial page tables
     // SAFETY: We are in early boot, single-threaded, and have exclusive access to memory.
+    // The total_memory value comes from the DTB which was validated earlier.
     unsafe {
         setup_kernel_page_tables(total_memory);
     }
@@ -54,6 +55,12 @@ pub fn init() {
 /// Set up kernel page tables
 ///
 /// Creates identity mapping for low memory and higher-half mapping for kernel.
+///
+/// # Safety
+///
+/// This function must be called only during early boot. It accesses the static
+/// `BOOT_TABLES` which is mutable and not thread-safe. It assumes `total_memory`
+/// correctly reflects the physical memory size available.
 unsafe fn setup_kernel_page_tables(total_memory: usize) {
     #[allow(clippy::deref_addrof)]
     // SAFETY: We are in early boot (single core) and this is the only access to BOOT_TABLES.

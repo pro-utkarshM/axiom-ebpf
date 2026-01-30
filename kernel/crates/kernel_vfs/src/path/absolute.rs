@@ -35,12 +35,10 @@ impl AbsolutePath {
 
     #[must_use]
     pub fn parent(&self) -> Option<&AbsolutePath> {
-        self.inner
-            .parent()
-            .map(|v| unsafe {
-                // SAFETY: The parent of an absolute path is also absolute (or None).
-                AbsolutePath::new_unchecked(v)
-            })
+        self.inner.parent().map(|v| {
+            // SAFETY: The parent of an absolute path is also absolute (or None).
+            unsafe { AbsolutePath::new_unchecked(v) }
+        })
     }
 }
 

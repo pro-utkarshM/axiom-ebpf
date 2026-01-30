@@ -36,17 +36,23 @@ use x86_64::instructions::hlt;
 #[cfg(not(target_arch = "x86_64"))]
 fn hlt() {
     #[cfg(target_arch = "riscv64")]
+    // SAFETY: Executing wfi (wait for interrupt) is safe in kernel mode.
     unsafe {
         riscv::asm::wfi();
     }
     #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+    // SAFETY: Executing wfi instruction is safe in kernel mode.
     unsafe {
         core::arch::asm!("wfi");
     }
 }
 
 #[cfg(target_arch = "x86_64")]
+// SAFETY: We export "kernel_main" as the symbol name for the bootloader to find.
+// This symbol name is unique and required by the Limine protocol.
 #[unsafe(export_name = "kernel_main")]
+// SAFETY: This is the kernel entry point. It initializes the system and manages resources
+// which inherently involves unsafe operations. The bootloader guarantees the initial state.
 unsafe extern "C" fn main() -> ! {
     assert!(BASE_REVISION.is_supported());
 
@@ -79,8 +85,11 @@ unsafe extern "C" fn main() -> ! {
 }
 
 #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+// SAFETY: Export "kernel_main" for the bootloader.
 #[unsafe(export_name = "kernel_main")]
+// SAFETY: Kernel entry point.
 unsafe extern "C" fn main() -> ! {
+    // SAFETY: We are initializing the kernel subsystems in the correct order.
     unsafe {
         kernel::init();
 
@@ -108,7 +117,9 @@ unsafe extern "C" fn main() -> ! {
 }
 
 #[cfg(target_arch = "riscv64")]
+// SAFETY: Export "kernel_main" for the bootloader.
 #[unsafe(export_name = "kernel_main")]
+// SAFETY: Kernel entry point.
 unsafe extern "C" fn main() -> ! {
     kernel::init();
 

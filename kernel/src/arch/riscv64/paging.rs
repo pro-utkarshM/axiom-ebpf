@@ -9,6 +9,7 @@ pub fn init() {
 
 /// Flush TLB
 pub fn flush_tlb() {
+    // SAFETY: Executing sfence.vma instruction is safe in kernel mode to flush TLB.
     unsafe {
         riscv::asm::sfence_vma_all();
     }
@@ -16,12 +17,16 @@ pub fn flush_tlb() {
 
 /// Flush TLB for specific virtual address
 pub fn flush_tlb_page(vaddr: usize) {
+    // SAFETY: Executing sfence.vma instruction for a specific address is safe in kernel mode.
     unsafe {
         riscv::asm::sfence_vma(vaddr, 0);
     }
 }
 
 /// Set page table base (satp register)
+// SAFETY: Writing to the satp register changes the virtual memory mapping.
+// The caller must ensure that the physical page number (ppn) points to a valid
+// page table structure.
 pub unsafe fn set_page_table(ppn: usize) {
     // Sv39 mode (mode = 8)
     let satp_value = (8 << 60) | (ppn & 0xFFFFFFFFFFF);

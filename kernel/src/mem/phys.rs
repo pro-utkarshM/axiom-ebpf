@@ -138,6 +138,8 @@ impl PhysicalMemory {
 }
 
 #[cfg(target_arch = "x86_64")]
+// SAFETY: The allocator returns unique physical frames that are not currently in use.
+// It manages the physical memory state to ensure safety.
 unsafe impl x86_64::structures::paging::FrameAllocator<Size4KiB> for PhysicalMemory {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
         Self::allocate_frame()

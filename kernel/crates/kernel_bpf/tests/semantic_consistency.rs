@@ -26,21 +26,26 @@ fn context_with_data(data: &[u8]) -> BpfContext {
 }
 
 // Stubs for resolving linker errors during integration testing
+
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_ktime_get_ns() -> u64 {
     0
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_trace_printk(_fmt: *const u8, _len: u32) -> i32 {
     0
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_map_lookup_elem(_map_id: u32, _key: *const u8) -> *mut u8 {
     core::ptr::null_mut()
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_map_update_elem(
     _map_id: u32,
@@ -51,11 +56,13 @@ pub extern "C" fn bpf_map_update_elem(
     0
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_map_delete_elem(_map_id: u32, _key: *const u8) -> i32 {
     0
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_ringbuf_output(
     _map_id: u32,
@@ -66,16 +73,19 @@ pub extern "C" fn bpf_ringbuf_output(
     0
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_gpio_read(_pin: u32) -> i64 {
     0
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_gpio_write(_pin: u32, _value: u32) -> i64 {
     0
 }
 
+// SAFETY: Test stub for BPF helper.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_pwm_write(_pwm_id: u32, _channel: u32, _duty: u32) -> i64 {
     0

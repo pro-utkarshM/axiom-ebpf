@@ -125,6 +125,7 @@ impl PageTableWalker {
     ///
     /// # Safety
     /// The root pointer must be valid and properly aligned.
+    // SAFETY: The caller ensures the root pointer is valid.
     pub unsafe fn new(root: *mut PageTable) -> Self {
         Self { root }
     }
@@ -264,13 +265,8 @@ impl PageTableWalker {
             let next_table = entry.addr() as *mut PageTable;
             // SAFETY: We checked the entry is valid and is a table descriptor.
             // The pointer derived from entry.addr() points to a valid physical page.
-            // We rely on the identity map/higher-half map being active for this pointer deref if it's virtual,
-            // or that we can access physical memory. Wait, `PageTableWalker` uses physical addresses mostly
-            // but if `next_table` is physical, we can't just dereference it if MMU is on unless we have an identity map.
-            //
-            // NOTE: This implementation assumes we are operating in a context where physical addresses
-            // (or at least the lower physical memory where page tables live) are directly accessible or identity mapped.
-            // This is true for the bootstrap phase.
+            // We assume an identity mapping or that we are in a context where
+            // physical addresses are accessible (bootstrap).
             Some(unsafe { &mut *next_table })
         } else {
             None
@@ -282,7 +278,8 @@ impl PageTableWalker {
         let entry = table.entry(index);
         if entry.is_valid() && entry.is_table() {
             let next_table = entry.addr() as *const PageTable;
-            // SAFETY: See get_table. Valid table descriptor implies valid pointer.
+            // SAFETY: See get_table. Valid table descriptor implies valid pointer
+            // in the identity-mapped physical memory region.
             Some(unsafe { &*next_table })
         } else {
             None

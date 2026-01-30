@@ -43,8 +43,11 @@ pub fn init() {
         )
         .unwrap();
 
-    let hpet_volatile_ptr =
-        unsafe { VolatilePtr::new(NonNull::new(segment.start.as_mut_ptr()).unwrap()) };
+    // SAFETY: We have just mapped this memory region and verified it corresponds
+    // to the HPET base address. The pointer is valid and non-null.
+    let hpet_volatile_ptr = unsafe {
+        VolatilePtr::new(NonNull::new(segment.start.as_mut_ptr()).unwrap())
+    };
     let hpet = Hpet {
         segment,
         inner: hpet_volatile_ptr,
@@ -59,7 +62,11 @@ pub struct Hpet<'a> {
     inner: VolatilePtr<'a, Inner>,
 }
 
+// SAFETY: Hpet owns the memory segment and provides exclusive access to it.
+// It is safe to transfer ownership to another thread.
 unsafe impl Send for Hpet<'_> {}
+// SAFETY: Hpet handles access to hardware registers via VolatilePtr.
+// Synchronization is enforced by the RwLock wrapping the static HPET instance.
 unsafe impl Sync for Hpet<'_> {}
 
 impl Hpet<'_> {

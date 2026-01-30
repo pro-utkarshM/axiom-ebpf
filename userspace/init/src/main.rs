@@ -3,6 +3,7 @@
 
 use minilib::write;
 
+// SAFETY: Entry point for the init process, called by the kernel/loader.
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     write(1, b"=== BPF Maps Demo ===\n");
@@ -40,6 +41,7 @@ pub extern "C" fn _start() -> ! {
     if map_id < 0 {
         write(1, b"Failed to create map!\n");
         loop {
+            // SAFETY: executing pause instruction is safe in userspace
             unsafe {
                 core::arch::asm!("pause");
             }
@@ -172,6 +174,7 @@ pub extern "C" fn _start() -> ! {
     if prog_id < 0 {
         write(1, b"Failed to load BPF program!\n");
         loop {
+            // SAFETY: executing pause instruction is safe in userspace
             unsafe {
                 core::arch::asm!("pause");
             }
@@ -200,6 +203,7 @@ pub extern "C" fn _start() -> ! {
     if attach_res != 0 {
         write(1, b"Failed to attach!\n");
         loop {
+            // SAFETY: executing pause instruction is safe in userspace
             unsafe {
                 core::arch::asm!("pause");
             }
@@ -238,6 +242,7 @@ pub extern "C" fn _start() -> ! {
             }
         }
 
+        // SAFETY: executing pause instruction is safe in userspace
         unsafe {
             core::arch::asm!("pause");
         }

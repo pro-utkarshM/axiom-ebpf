@@ -257,32 +257,38 @@ impl Rp1Pwm {
 
     // Register accessors
     fn reg_ctl(&self) -> MmioReg<u32> {
-        // SAFETY: The base address is valid and the offset is within bounds.
+        // SAFETY: The base address is initialized to a valid MMIO region for PWM0/1.
+        // The offset reg::CTL is within the bounds of the PWM controller's register space.
         unsafe { MmioReg::new(self.base + reg::CTL) }
     }
 
     fn reg_sta(&self) -> MmioReg<u32> {
-        // SAFETY: The base address is valid and the offset is within bounds.
+        // SAFETY: The base address is initialized to a valid MMIO region for PWM0/1.
+        // The offset reg::STA is within the bounds of the PWM controller's register space.
         unsafe { MmioReg::new(self.base + reg::STA) }
     }
 
     fn reg_rng1(&self) -> MmioReg<u32> {
-        // SAFETY: The base address is valid and the offset is within bounds.
+        // SAFETY: The base address is initialized to a valid MMIO region for PWM0/1.
+        // The offset reg::RNG1 is within the bounds of the PWM controller's register space.
         unsafe { MmioReg::new(self.base + reg::RNG1) }
     }
 
     fn reg_dat1(&self) -> MmioReg<u32> {
-        // SAFETY: The base address is valid and the offset is within bounds.
+        // SAFETY: The base address is initialized to a valid MMIO region for PWM0/1.
+        // The offset reg::DAT1 is within the bounds of the PWM controller's register space.
         unsafe { MmioReg::new(self.base + reg::DAT1) }
     }
 
     fn reg_rng2(&self) -> MmioReg<u32> {
-        // SAFETY: The base address is valid and the offset is within bounds.
+        // SAFETY: The base address is initialized to a valid MMIO region for PWM0/1.
+        // The offset reg::RNG2 is within the bounds of the PWM controller's register space.
         unsafe { MmioReg::new(self.base + reg::RNG2) }
     }
 
     fn reg_dat2(&self) -> MmioReg<u32> {
-        // SAFETY: The base address is valid and the offset is within bounds.
+        // SAFETY: The base address is initialized to a valid MMIO region for PWM0/1.
+        // The offset reg::DAT2 is within the bounds of the PWM controller's register space.
         unsafe { MmioReg::new(self.base + reg::DAT2) }
     }
 }

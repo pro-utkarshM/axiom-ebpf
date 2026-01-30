@@ -509,8 +509,9 @@ impl<P: PhysicalProfile> BpfMap<P> for TimeSeriesMap<P> {
     }
 }
 
-// Safety: TimeSeriesMap uses RwLock for thread safety
+// SAFETY: TimeSeriesMap uses RwLock for thread safety.
 unsafe impl<P: PhysicalProfile> Send for TimeSeriesMap<P> {}
+// SAFETY: TimeSeriesMap uses RwLock for thread safety.
 unsafe impl<P: PhysicalProfile> Sync for TimeSeriesMap<P> {}
 
 #[cfg(test)]

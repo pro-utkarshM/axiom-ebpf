@@ -20,6 +20,7 @@ struct BpfInsn {
     imm: i32,
 }
 
+// SAFETY: Entry point for the GPIO demo. Called by the startup code.
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     print("=== GPIO Interactivity Demo ===\n");
@@ -180,10 +181,12 @@ pub extern "C" fn _start() -> ! {
         // Sleep or do work. The BPF program runs in interrupt context.
         // For this demo, we just yield/pause.
         #[cfg(target_arch = "x86_64")]
+        // SAFETY: Safe to execute pause instruction in userspace loop.
         unsafe {
             core::arch::asm!("pause");
         }
         #[cfg(target_arch = "aarch64")]
+        // SAFETY: Safe to execute wfi (wait for interrupt) in userspace loop.
         unsafe {
             core::arch::asm!("wfi");
         }

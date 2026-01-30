@@ -23,6 +23,9 @@ pub fn handle_syscall() {
     log::debug!("Syscall handler called");
 
     // Advance past ecall instruction (4 bytes)
+    // SAFETY: Modifying the SEPC (Supervisor Exception Program Counter) register.
+    // We advanced it by 4 bytes to skip the ecall instruction so we return to the
+    // next instruction after the syscall.
     unsafe {
         let pc = sepc::read();
         sepc::write(pc + 4);
@@ -46,6 +49,9 @@ pub extern "C" fn syscall_handler_with_context(
     let result = crate::syscall::dispatch_syscall(a7, a0, a1, a2, a3, a4, a5);
 
     // Advance past ecall instruction
+    // SAFETY: Modifying the SEPC (Supervisor Exception Program Counter) register.
+    // We advanced it by 4 bytes to skip the ecall instruction so we return to the
+    // next instruction after the syscall.
     unsafe {
         let pc = sepc::read();
         sepc::write(pc + 4);

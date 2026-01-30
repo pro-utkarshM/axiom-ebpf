@@ -243,6 +243,8 @@ impl<T: AllocationType> Debug for LowerHalfAllocation<T> {
 impl<T: AllocationType> AsRef<[u8]> for LowerHalfAllocation<T> {
     fn as_ref(&self) -> &[u8] {
         let ptr = self.start.as_ptr();
+        // SAFETY: self.start points to the start of the allocation, and self.layout.size()
+        // is the size of the allocation. The allocation is valid for the lifetime of self.
         unsafe { from_raw_parts(ptr, self.layout.size()) }
     }
 }
@@ -256,6 +258,8 @@ impl<T: AllocationType> Allocation for LowerHalfAllocation<T> {
 impl AsMut<[u8]> for LowerHalfAllocation<Writable> {
     fn as_mut(&mut self) -> &mut [u8] {
         let ptr = self.start.as_mut_ptr();
+        // SAFETY: self.start points to the start of the allocation, and self.layout.size()
+        // is the size of the allocation. We have exclusive access via &mut self.
         unsafe { from_raw_parts_mut(ptr, self.layout.size()) }
     }
 }

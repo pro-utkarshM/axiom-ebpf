@@ -18,6 +18,8 @@ pub fn init() {
     );
 
     // enable SSE and FXSAVE/FXRSTOR
+    // SAFETY: We have verified that the CPU supports SSE and FXSAVE/FXRSTOR using CPUID.
+    // Enabling these features in CR0 and CR4 is safe and required for the kernel to function.
     unsafe {
         Cr0::update(|cr0| {
             cr0.remove(Cr0Flags::EMULATE_COPROCESSOR);

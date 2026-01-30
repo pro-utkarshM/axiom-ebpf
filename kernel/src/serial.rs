@@ -6,6 +6,8 @@ mod x86_64_impl {
     use uart_16550::SerialPort;
 
     static SERIAL1: Lazy<Mutex<SerialPort>> = Lazy::new(|| {
+        // SAFETY: We are initializing the standard COM1 serial port at 0x3F8.
+        // This address is reserved for the serial port on x86 platforms.
         let mut serial_port = unsafe { SerialPort::new(0x3F8) };
         serial_port.init();
         Mutex::new(serial_port)

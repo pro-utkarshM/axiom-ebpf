@@ -18,6 +18,8 @@ pub struct AddressSpaceMapper {
 impl AddressSpaceMapper {
     pub fn new(level4_frame: PhysFrame, level4_vaddr: VirtAddr) -> Self {
         let page_table = {
+            // SAFETY: The caller ensures that level4_vaddr points to a valid PageTable
+            // and that we have exclusive access (or appropriate synchronization) to it.
             let pt = unsafe { &mut *level4_vaddr.as_mut_ptr::<PageTable>() };
             RecursivePageTable::new(pt).expect("should be a valid recursive page table")
         };
@@ -55,6 +57,8 @@ impl AddressSpaceMapper {
             }
         }
 
+        // SAFETY: We hold a mutable reference to the mapper, ensuring exclusive access.
+        // The frame allocator (PhysicalMemory) is thread-safe.
         unsafe {
             self.page_table
                 .map_to(page, frame, flags, &mut PhysicalMemory)?
@@ -131,6 +135,7 @@ impl AddressSpaceMapper {
         else {
             return Err(FlagUpdateError::PageNotMapped);
         };
+        // SAFETY: We checked that the page is mapped. We hold exclusive access via &mut self.
         let flusher = unsafe { self.page_table.update_flags(page, f(flags)) }?;
         flusher.flush();
         Ok(())

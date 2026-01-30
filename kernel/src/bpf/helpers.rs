@@ -1,5 +1,11 @@
 use crate::time::get_kernel_time_ns;
 
+/// BPF helper: Get kernel time in nanoseconds
+///
+/// # Safety
+///
+/// This function is an entry point for BPF programs. It is safe to call from
+/// any context as it only reads the kernel time.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_ktime_get_ns() -> u64 {
     get_kernel_time_ns()
@@ -8,6 +14,11 @@ pub extern "C" fn bpf_ktime_get_ns() -> u64 {
 /// BPF helper: Read GPIO pin value
 ///
 /// Returns 1 if pin is high, 0 if low, -1 on error (invalid pin).
+///
+/// # Safety
+///
+/// This function is an entry point for BPF programs. It accesses hardware registers
+/// but validates inputs (pin numbers) to prevent invalid access.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_gpio_read(pin: u32) -> i64 {
     #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
@@ -33,6 +44,11 @@ pub extern "C" fn bpf_gpio_read(pin: u32) -> i64 {
 /// Returns 0 on success, -1 on error (invalid pin).
 ///
 /// Note: Pin must be configured as output first via syscall.
+///
+/// # Safety
+///
+/// This function is an entry point for BPF programs. It accesses hardware registers
+/// but validates inputs (pin numbers) to prevent invalid access.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_gpio_write(pin: u32, value: u32) -> i64 {
     #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
@@ -61,6 +77,11 @@ pub extern "C" fn bpf_gpio_write(pin: u32, value: u32) -> i64 {
 ///
 /// Toggles output pin state (high -> low or low -> high).
 /// Returns new value (0 or 1) on success, -1 on error.
+///
+/// # Safety
+///
+/// This function is an entry point for BPF programs. It accesses hardware registers
+/// but validates inputs (pin numbers) to prevent invalid access.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_gpio_toggle(pin: u32) -> i64 {
     #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
@@ -86,6 +107,11 @@ pub extern "C" fn bpf_gpio_toggle(pin: u32) -> i64 {
 ///
 /// Configures pin as output with specified initial value.
 /// Returns 0 on success, -1 on error.
+///
+/// # Safety
+///
+/// This function is an entry point for BPF programs. It accesses hardware registers
+/// but validates inputs (pin numbers) to prevent invalid access.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_gpio_set_output(pin: u32, initial_high: u32) -> i64 {
     #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
@@ -114,6 +140,11 @@ pub extern "C" fn bpf_gpio_set_output(pin: u32, initial_high: u32) -> i64 {
 /// - duty_percent: 0-100
 ///
 /// Returns 0 on success, -1 on error.
+///
+/// # Safety
+///
+/// This function is an entry point for BPF programs. It accesses hardware registers
+/// but validates inputs (pwm_id, channel) to prevent invalid access.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_pwm_write(pwm_id: u32, channel: u32, duty_percent: u32) -> i64 {
     #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
@@ -145,6 +176,10 @@ pub extern "C" fn bpf_pwm_write(pwm_id: u32, channel: u32, duty_percent: u32) ->
     }
 }
 
+/// # Safety
+///
+/// This function is an entry point for BPF programs. The verifier ensures that the
+/// string pointer is valid and points to a null-terminated string in read-only memory.
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_trace_printk(fmt: *const u8, _size: u32) -> i32 {
     // SAFETY: The verifier guarantees that the string is in valid memory.
@@ -200,8 +235,9 @@ pub extern "C" fn bpf_map_update_elem(
             let key_size = def.key_size as usize;
             let value_size = def.value_size as usize;
 
-            // SAFETY: Verifier ensures valid memory access
+            // SAFETY: Verifier ensures valid memory access for key_ptr
             let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
+            // SAFETY: Verifier ensures valid memory access for value_ptr
             let value = unsafe { core::slice::from_raw_parts(value_ptr, value_size) };
 
             if manager.map_update(map_id, key, value, flags).is_ok() {
@@ -224,6 +260,7 @@ pub extern "C" fn bpf_map_delete_elem(map_id: u32, key_ptr: *const u8) -> i32 {
         let manager = manager.lock();
         if let Some(def) = manager.get_map_def(map_id) {
             let key_size = def.key_size as usize;
+            // SAFETY: Verifier ensures valid memory access for key_ptr
             let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
             if manager.map_delete(map_id, key).is_ok() {
                 return 0;

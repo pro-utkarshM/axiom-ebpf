@@ -59,6 +59,8 @@ impl HigherHalfStack {
 
         // set up stack
         let entry_point = (entry_point as *const ()).cast::<usize>();
+        // SAFETY: The mapped segment is valid memory allocated for the stack.
+        // We have exclusive access to it during initialization.
         let slice = unsafe {
             from_raw_parts_mut(
                 mapped_segment.start.as_mut_ptr::<u8>(),
@@ -192,6 +194,8 @@ impl<'a> StackWriter<'a> {
                 isize::try_from(self.offset).expect("stack offset should not overflow isize"),
             )
             .cast::<T>();
+        // SAFETY: The pointer is calculated from the stack slice and offset,
+        // ensuring it points to valid memory within the stack.
         unsafe { ptr.write(value) };
     }
 }

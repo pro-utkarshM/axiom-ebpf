@@ -391,5 +391,7 @@ extern "C" fn trampoline(_arg: *mut c_void) {
         ustack_rsp,
         sel.user_data,
     );
+    // SAFETY: We have set up the user stack and code pointer correctly, and we are
+    // performing a return to userspace (Ring 3) to start the process execution.
     unsafe { isfv.iretq() };
 }

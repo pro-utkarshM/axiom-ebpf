@@ -23,8 +23,8 @@ impl<T> TryFrom<*const T> for UserspacePtr<T> {
     type Error = NotUserspace;
 
     fn try_from(ptr: *const T) -> Result<Self, Self::Error> {
+        // SAFETY: we use a valid pointer
         unsafe {
-            // Safety: we use a valid pointer
             Self::try_from_usize(ptr as usize)
         }
     }
@@ -97,8 +97,8 @@ impl<T> TryFrom<*mut T> for UserspaceMutPtr<T> {
     type Error = NotUserspace;
 
     fn try_from(ptr: *mut T) -> Result<Self, Self::Error> {
+        // SAFETY: we use a valid pointer
         unsafe {
-            // Safety: we use a valid pointer
             Self::try_from_usize(ptr as usize)
         }
     }
@@ -142,18 +142,22 @@ mod tests {
 
     #[test]
     fn test_validate_range_valid_small() {
+        // SAFETY: 0x1000 is a valid userspace address for testing validation logic.
+        // We are not dereferencing it.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(0x1000).unwrap() };
         assert!(ptr.validate_range(4096).is_ok());
     }
 
     #[test]
     fn test_validate_range_valid_large() {
+        // SAFETY: 0x1000_0000 is a valid userspace address for testing validation logic.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(0x1000_0000).unwrap() };
         assert!(ptr.validate_range(0x1000_0000).is_ok());
     }
 
     #[test]
     fn test_validate_range_zero_size() {
+        // SAFETY: 0x1000 is a valid userspace address.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(0x1000).unwrap() };
         assert!(ptr.validate_range(0).is_ok());
     }
@@ -163,6 +167,7 @@ mod tests {
         // Maximum valid lower-half address with 48-bit addressing
         // 0x0000_7FFF_FFFF_FFFF (bit 47 = 0)
         let max_lower_half = (1_usize << 47) - 1;
+        // SAFETY: max_lower_half is a valid userspace address.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(max_lower_half).unwrap() };
         // Size 0 should be OK (no overflow)
         assert!(ptr.validate_range(0).is_ok());
@@ -172,6 +177,7 @@ mod tests {
 
     #[test]
     fn test_validate_range_overflow_into_upper_half() {
+        // SAFETY: 0x0000_7FFF_FFFF_F000 is a valid userspace address.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(0x0000_7FFF_FFFF_F000).unwrap() };
         // This would overflow into the upper half (bit 47 would be set)
         assert!(ptr.validate_range(0x2000).is_err());
@@ -179,6 +185,7 @@ mod tests {
 
     #[test]
     fn test_validate_range_arithmetic_overflow() {
+        // SAFETY: 0x0000_7FFF_FFFF_FFFF is a valid userspace address.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(0x0000_7FFF_FFFF_FFFF).unwrap() };
         // This would cause usize overflow
         assert!(ptr.validate_range(usize::MAX).is_err());
@@ -189,6 +196,7 @@ mod tests {
         // Test various sizes near the 48-bit boundary
         // Upper half starts at 0x0000_8000_0000_0000 (bit 47 set)
         let base = 0x0000_7FFF_FFFF_F000_usize;
+        // SAFETY: base is a valid userspace address.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(base).unwrap() };
 
         // Should be OK: base + 0xFFF = 0x0000_7FFF_FFFF_FFFF (max lower half)
@@ -201,6 +209,7 @@ mod tests {
 
     #[test]
     fn test_validate_range_from_zero() {
+        // SAFETY: 0 is a valid userspace address (NULL).
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(0).unwrap() };
         // Can map up to the entire lower half (48-bit addressing)
         let max_lower_half = (1_usize << 47) - 1;
@@ -211,6 +220,7 @@ mod tests {
 
     #[test]
     fn test_validate_range_max_size() {
+        // SAFETY: 1 is a valid userspace address.
         let ptr = unsafe { UserspacePtr::<u8>::try_from_usize(1).unwrap() };
         // Maximum possible size without overflow
         assert!(ptr.validate_range(usize::MAX - 1).is_err());
@@ -220,6 +230,7 @@ mod tests {
     fn test_canonical_address_lower_half_max() {
         // Maximum canonical lower-half address (bit 47 = 0)
         let max_canonical_lower = 0x0000_7FFF_FFFF_FFFF_usize;
+        // SAFETY: max_canonical_lower is a valid userspace address.
         let result = unsafe { UserspacePtr::<u8>::try_from_usize(max_canonical_lower) };
         assert!(result.is_ok());
     }
@@ -229,6 +240,7 @@ mod tests {
         // Minimum canonical upper-half address (bit 47 = 1, bits 48-63 must be 1)
         // This is 0xFFFF_8000_0000_0000, but we should reject it as it's kernel space
         let min_canonical_upper = 0xFFFF_8000_0000_0000_usize;
+        // SAFETY: We are testing detection of invalid userspace addresses.
         let result = unsafe { UserspacePtr::<u8>::try_from_usize(min_canonical_upper) };
         assert!(result.is_err());
     }
@@ -238,6 +250,7 @@ mod tests {
         // Non-canonical addresses (bit 47 set but not all of bits 48-63)
         // e.g., 0x0000_8000_0000_0000 has bit 47 set but bits 48-63 are 0
         let non_canonical = 0x0000_8000_0000_0000_usize;
+        // SAFETY: We are testing detection of invalid addresses.
         let result = unsafe { UserspacePtr::<u8>::try_from_usize(non_canonical) };
         // This should be rejected because bit 47 is set (upper half)
         assert!(result.is_err());
@@ -247,6 +260,7 @@ mod tests {
     fn test_address_just_below_boundary() {
         // One byte below the boundary
         let just_below = 0x0000_7FFF_FFFF_FFFE_usize;
+        // SAFETY: just_below is a valid userspace address.
         let result = unsafe { UserspacePtr::<u8>::try_from_usize(just_below) };
         assert!(result.is_ok());
 
@@ -271,6 +285,7 @@ mod tests {
         ];
 
         for &addr in &valid_addrs {
+            // SAFETY: valid_addrs contains valid userspace addresses.
             let result = unsafe { UserspacePtr::<u8>::try_from_usize(addr) };
             assert!(result.is_ok(), "Address 0x{:016x} should be valid", addr);
         }
