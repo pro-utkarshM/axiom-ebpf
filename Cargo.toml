@@ -66,6 +66,7 @@ bitflags = "2.10"
 conquer-once = { version = "0.4", default-features = false }
 cordyceps = { version = "0.3", default-features = false, features = ["alloc"] }
 raw-cpuid = "11"
+either = { version = "1.15", default-features = false }
 elf = { version = "0.7", default-features = false, features = ["nightly"] }
 itertools = { version = "0.14.0", default-features = false, features = [
   "use_alloc",
