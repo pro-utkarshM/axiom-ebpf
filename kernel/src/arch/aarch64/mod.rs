@@ -13,7 +13,6 @@ pub mod platform;
 pub mod shutdown;
 pub mod syscall;
 
-
 use crate::arch::traits::Architecture;
 
 pub struct Aarch64;

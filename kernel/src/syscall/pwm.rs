@@ -1,6 +1,5 @@
 //! PWM Syscall Implementation
 
-
 use crate::arch::aarch64::platform::rpi5::pwm::{PWM0, PWM1};
 
 /// Configure PWM period/frequency

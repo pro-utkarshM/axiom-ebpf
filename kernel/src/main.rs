@@ -2,8 +2,14 @@
 #![no_main]
 extern crate alloc;
 
+#[cfg(target_arch = "x86_64")]
+use alloc::{boxed::Box, sync::Arc};
+#[cfg(target_arch = "x86_64")]
+use core::error::Error;
 use core::panic::PanicInfo;
 
+#[cfg(target_arch = "x86_64")]
+use ext2::Ext2Fs;
 #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
 use kernel::arch::traits::Architecture;
 #[cfg(target_arch = "x86_64")]
@@ -12,27 +18,20 @@ use kernel::limine::BASE_REVISION;
 use kernel::mcore;
 #[cfg(target_arch = "x86_64")]
 use kernel::mcore::mtask::process::Process;
-use log::{error, info};
-#[cfg(target_arch = "x86_64")]
-use x86_64::instructions::hlt;
-
-#[cfg(target_arch = "x86_64")]
-use alloc::{boxed::Box, sync::Arc};
-#[cfg(target_arch = "x86_64")]
-use core::error::Error;
-#[cfg(target_arch = "x86_64")]
-use ext2::Ext2Fs;
 #[cfg(target_arch = "x86_64")]
 use kernel::{
-    driver::{block::BlockDevices, KernelDeviceId},
+    driver::{KernelDeviceId, block::BlockDevices},
     file::{ext2::VirtualExt2Fs, vfs},
 };
 #[cfg(target_arch = "x86_64")]
 use kernel_device::block::{BlockBuf, BlockDevice};
 #[cfg(target_arch = "x86_64")]
 use kernel_vfs::path::{AbsolutePath, ROOT};
+use log::{error, info};
 #[cfg(target_arch = "x86_64")]
 use spin::RwLock;
+#[cfg(target_arch = "x86_64")]
+use x86_64::instructions::hlt;
 
 #[cfg(not(target_arch = "x86_64"))]
 fn hlt() {
@@ -81,30 +80,32 @@ unsafe extern "C" fn main() -> ! {
 
 #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
 #[unsafe(export_name = "kernel_main")]
-unsafe extern "C" fn main() -> ! { unsafe {
-    kernel::init();
+unsafe extern "C" fn main() -> ! {
+    unsafe {
+        kernel::init();
 
-    info!("ARM64 kernel started");
+        info!("ARM64 kernel started");
 
-    // Initialize per-CPU context for CPU 0
-    kernel::arch::aarch64::cpu::init_current_cpu(0);
+        // Initialize per-CPU context for CPU 0
+        kernel::arch::aarch64::cpu::init_current_cpu(0);
 
-    // Get scheduler and initialize with current stack as idle task
-    let ctx = kernel::arch::aarch64::cpu::current();
-    let sched = ctx.scheduler_mut();
-    let idle_sp = kernel::arch::aarch64::context::current_sp();
-    sched.init(idle_sp);
+        // Get scheduler and initialize with current stack as idle task
+        let ctx = kernel::arch::aarch64::cpu::current();
+        let sched = ctx.scheduler_mut();
+        let idle_sp = kernel::arch::aarch64::context::current_sp();
+        sched.init(idle_sp);
 
-    info!("Scheduler initialized, entering idle loop");
+        info!("Scheduler initialized, entering idle loop");
 
-    // Enable interrupts and enter idle loop
-    kernel::arch::aarch64::Aarch64::enable_interrupts();
+        // Enable interrupts and enter idle loop
+        kernel::arch::aarch64::Aarch64::enable_interrupts();
 
-    loop {
-        // Wait for interrupt - timer will fire and potentially reschedule
-        hlt();
+        loop {
+            // Wait for interrupt - timer will fire and potentially reschedule
+            hlt();
+        }
     }
-}}
+}
 
 #[cfg(target_arch = "riscv64")]
 #[unsafe(export_name = "kernel_main")]

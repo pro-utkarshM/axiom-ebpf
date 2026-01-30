@@ -5,19 +5,18 @@ use core::slice::{from_raw_parts, from_raw_parts_mut};
 #[cfg(target_arch = "x86_64")]
 use access::KernelAccess;
 use kernel_abi::{EINVAL, Errno, syscall_name};
-use log::{error, trace};
-#[cfg(target_arch = "x86_64")]
-use x86_64::instructions::hlt;
-
 #[cfg(target_arch = "x86_64")]
 use kernel_syscall::{
+    UserspaceMutPtr, UserspacePtr,
     access::FileAccess,
     fcntl::sys_open,
     mman::sys_mmap,
     stat::sys_fstat,
     unistd::{sys_close, sys_getcwd, sys_lseek, sys_read, sys_write},
-    UserspaceMutPtr, UserspacePtr,
 };
+use log::{error, trace};
+#[cfg(target_arch = "x86_64")]
+use x86_64::instructions::hlt;
 
 #[cfg(not(target_arch = "x86_64"))]
 fn hlt() {

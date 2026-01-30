@@ -43,67 +43,69 @@ static mut DTB_INFO: DeviceTreeInfo = DeviceTreeInfo::empty();
 ///
 /// # Safety
 /// The dtb_addr must point to a valid device tree blob in memory
-pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> { unsafe {
-    if dtb_addr == 0 {
-        return Err("DTB address is null");
-    }
+pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> {
+    unsafe {
+        if dtb_addr == 0 {
+            return Err("DTB address is null");
+        }
 
-    // Create a slice from the DTB address - we don't know the size yet,
-    // but the fdt crate will validate the header
-    let dtb_ptr = dtb_addr as *const u8;
+        // Create a slice from the DTB address - we don't know the size yet,
+        // but the fdt crate will validate the header
+        let dtb_ptr = dtb_addr as *const u8;
 
-    // Read the magic number first to validate
-    let magic = core::ptr::read_volatile(dtb_ptr as *const u32);
-    if magic.to_be() != 0xd00dfeed {
-        return Err("Invalid DTB magic number");
-    }
+        // Read the magic number first to validate
+        let magic = core::ptr::read_volatile(dtb_ptr as *const u32);
+        if magic.to_be() != 0xd00dfeed {
+            return Err("Invalid DTB magic number");
+        }
 
-    // Read the total size from the header
-    let total_size = core::ptr::read_volatile(dtb_ptr.add(4) as *const u32).to_be() as usize;
+        // Read the total size from the header
+        let total_size = core::ptr::read_volatile(dtb_ptr.add(4) as *const u32).to_be() as usize;
 
-    // Create the slice
-    let dtb_slice = core::slice::from_raw_parts(dtb_ptr, total_size);
+        // Create the slice
+        let dtb_slice = core::slice::from_raw_parts(dtb_ptr, total_size);
 
-    // Parse the FDT
-    let fdt = Fdt::new(dtb_slice).map_err(|_| "Failed to parse DTB")?;
+        // Parse the FDT
+        let fdt = Fdt::new(dtb_slice).map_err(|_| "Failed to parse DTB")?;
 
-    // Extract memory regions
-    let mut region_count = 0;
-    let mut total_memory = 0usize;
+        // Extract memory regions
+        let mut region_count = 0;
+        let mut total_memory = 0usize;
 
-    let memory = fdt.memory();
-    for region in memory.regions() {
-        if region_count < 8 {
-            let base = region.starting_address as usize;
-            let size = region.size.unwrap_or(0);
+        let memory = fdt.memory();
+        for region in memory.regions() {
+            if region_count < 8 {
+                let base = region.starting_address as usize;
+                let size = region.size.unwrap_or(0);
 
-            if size > 0 {
-                DTB_INFO.memory_regions[region_count] = Some(MemoryRegion { base, size });
-                total_memory = total_memory.saturating_add(size);
-                region_count += 1;
+                if size > 0 {
+                    DTB_INFO.memory_regions[region_count] = Some(MemoryRegion { base, size });
+                    total_memory = total_memory.saturating_add(size);
+                    region_count += 1;
 
-                log::info!(
-                    "DTB: memory region {}: {:#x} - {:#x} ({} MB)",
-                    region_count,
-                    base,
-                    base + size,
-                    size / (1024 * 1024)
-                );
+                    log::info!(
+                        "DTB: memory region {}: {:#x} - {:#x} ({} MB)",
+                        region_count,
+                        base,
+                        base + size,
+                        size / (1024 * 1024)
+                    );
+                }
             }
         }
+
+        DTB_INFO.memory_region_count = region_count;
+        DTB_INFO.total_memory = total_memory;
+
+        log::info!(
+            "DTB: parsed {} memory regions, total {} MB",
+            region_count,
+            total_memory / (1024 * 1024)
+        );
+
+        Ok(())
     }
-
-    DTB_INFO.memory_region_count = region_count;
-    DTB_INFO.total_memory = total_memory;
-
-    log::info!(
-        "DTB: parsed {} memory regions, total {} MB",
-        region_count,
-        total_memory / (1024 * 1024)
-    );
-
-    Ok(())
-}}
+}
 
 /// Get the parsed device tree information
 #[allow(clippy::deref_addrof)]

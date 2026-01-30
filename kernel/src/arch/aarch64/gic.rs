@@ -240,21 +240,25 @@ pub fn set_priority(_irq: u32, _priority: u8) {}
 // 4. read_volatile/write_volatile ensure proper memory ordering for MMIO
 
 #[cfg(feature = "rpi5")]
-unsafe fn read_gicd(offset: usize) -> u32 { unsafe {
-    core::ptr::read_volatile((GICD + offset) as *const u32)
-}}
+unsafe fn read_gicd(offset: usize) -> u32 {
+    unsafe { core::ptr::read_volatile((GICD + offset) as *const u32) }
+}
 
 #[cfg(feature = "rpi5")]
-unsafe fn write_gicd(offset: usize, value: u32) { unsafe {
-    core::ptr::write_volatile((GICD + offset) as *mut u32, value);
-}}
+unsafe fn write_gicd(offset: usize, value: u32) {
+    unsafe {
+        core::ptr::write_volatile((GICD + offset) as *mut u32, value);
+    }
+}
 
 #[cfg(feature = "rpi5")]
-unsafe fn read_gicc(offset: usize) -> u32 { unsafe {
-    core::ptr::read_volatile((GICC + offset) as *const u32)
-}}
+unsafe fn read_gicc(offset: usize) -> u32 {
+    unsafe { core::ptr::read_volatile((GICC + offset) as *const u32) }
+}
 
 #[cfg(feature = "rpi5")]
-unsafe fn write_gicc(offset: usize, value: u32) { unsafe {
-    core::ptr::write_volatile((GICC + offset) as *mut u32, value);
-}}
+unsafe fn write_gicc(offset: usize, value: u32) {
+    unsafe {
+        core::ptr::write_volatile((GICC + offset) as *mut u32, value);
+    }
+}

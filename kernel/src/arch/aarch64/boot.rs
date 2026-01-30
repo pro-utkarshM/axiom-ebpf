@@ -9,9 +9,11 @@ static mut BOOT_INFO: BootInfo = BootInfo { dtb_addr: 0 };
 ///
 /// # Safety
 /// The caller must ensure that `dtb_addr` is a valid physical address.
-pub unsafe fn init_boot_info(dtb_addr: usize) { unsafe {
-    BOOT_INFO.dtb_addr = dtb_addr;
-}}
+pub unsafe fn init_boot_info(dtb_addr: usize) {
+    unsafe {
+        BOOT_INFO.dtb_addr = dtb_addr;
+    }
+}
 
 /// Get boot information
 #[allow(clippy::deref_addrof)]
