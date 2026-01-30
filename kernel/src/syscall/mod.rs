@@ -14,6 +14,12 @@ use kernel_syscall::{
     stat::sys_fstat,
     unistd::{sys_close, sys_getcwd, sys_lseek, sys_read, sys_write},
 };
+#[cfg(target_arch = "x86_64")]
+use kernel_vfs::path::AbsolutePath;
+#[cfg(target_arch = "x86_64")]
+use alloc::boxed::Box;
+#[cfg(target_arch = "x86_64")]
+use crate::mcore::mtask::{process::Process, scheduler::global::GlobalTaskQueue};
 use log::{error, trace};
 #[cfg(target_arch = "x86_64")]
 use x86_64::instructions::hlt;
@@ -122,6 +128,7 @@ pub fn dispatch_syscall(
         kernel_abi::SYS_PWM_ENABLE => dispatch_sys_pwm_enable(arg1, arg2, arg3),
         kernel_abi::SYS_CLOCK_GETTIME => dispatch_sys_clock_gettime(arg1, arg2),
         kernel_abi::SYS_NANOSLEEP => dispatch_sys_nanosleep(arg1, arg2),
+        kernel_abi::SYS_SPAWN => dispatch_sys_spawn(arg1, arg2),
         _ => {
             error!("unimplemented syscall: {} ({n})", syscall_name(n));
             loop {
@@ -444,4 +451,46 @@ fn dispatch_sys_nanosleep(req: usize, _rem: usize) -> Result<usize, Errno> {
     }
 
     Ok(0)
+}
+
+#[cfg(target_arch = "x86_64")]
+fn dispatch_sys_spawn(path_ptr: usize, path_len: usize) -> Result<usize, Errno> {
+    use kernel_abi::ENAMETOOLONG;
+
+    // 1. Read path from userspace
+    // We reuse logic similar to sys_open
+    if path_len > kernel_abi::PATH_MAX {
+        return Err(ENAMETOOLONG);
+    }
+
+    // SAFETY: We checked path_len. UserspacePtr ensures address range validity.
+    // We assume the caller provides valid memory for the duration of the call.
+    let path_slice = unsafe { slice_from_ptr_and_len(path_ptr, path_len)? };
+    let path_str = core::str::from_utf8(path_slice).map_err(|_| EINVAL)?;
+
+    // 2. Resolve AbsolutePath
+    // We assume the path string is valid UTF-8 and represents a path
+    let abs_path = match AbsolutePath::try_new(path_str) {
+        Ok(p) => p,
+        Err(_) => return Err(EINVAL),
+    };
+
+    // 3. Create Process
+    let parent = crate::mcore::context::ExecutionContext::load().current_process();
+
+    // Process::create_from_executable handles task creation and enqueuing
+    let child_proc = match Process::create_from_executable(parent, abs_path) {
+        Ok(p) => p,
+        Err(_) => return Err(EINVAL), // Map CreateProcessError to Errno
+    };
+
+    // Use .as_u64() and then cast/convert to usize
+    // We defined U64Ext for u64, so we can use into_usize() on the u64 value.
+    use crate::U64Ext;
+    Ok(child_proc.pid().as_u64().into_usize())
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn dispatch_sys_spawn(_path: usize, _len: usize) -> Result<usize, Errno> {
+    Err(EINVAL)
 }

@@ -32,4 +32,9 @@ impl ProcessId {
     pub fn is_root(&self) -> bool {
         self.0 == 0
     }
+
+    #[must_use]
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
 }

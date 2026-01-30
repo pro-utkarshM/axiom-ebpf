@@ -271,3 +271,7 @@ pub fn open(path: &str, flags: c_int, mode: c_int) -> c_int {
         mode as usize,
     ) as i32
 }
+
+pub fn spawn(path: &str) -> c_int {
+    syscall2(56, path.as_ptr() as usize, path.len()) as i32
+}

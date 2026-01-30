@@ -8,6 +8,50 @@ use minilib::write;
 pub extern "C" fn _start() -> ! {
     write(1, b"=== BPF Maps Demo ===\n");
 
+    // Spawn file_io_demo to test SYS_SPAWN
+    write(1, b"Spawning /bin/file_io_demo...\n");
+    let pid = minilib::spawn("/bin/file_io_demo");
+    if pid < 0 {
+        write(1, b"Failed to spawn file_io_demo!\n");
+    } else {
+        write(1, b"Spawned file_io_demo with PID: ");
+        print_num(pid as u64);
+        write(1, b"\n");
+    }
+
+    // Spawn syscall_demo
+    write(1, b"Spawning /bin/syscall_demo...\n");
+    let pid = minilib::spawn("/bin/syscall_demo");
+    if pid < 0 {
+        write(1, b"Failed to spawn syscall_demo!\n");
+    } else {
+        write(1, b"Spawned syscall_demo with PID: ");
+        print_num(pid as u64);
+        write(1, b"\n");
+    }
+
+    // Spawn gpio_demo
+    write(1, b"Spawning /bin/gpio_demo...\n");
+    let pid = minilib::spawn("/bin/gpio_demo");
+    if pid < 0 {
+        write(1, b"Failed to spawn gpio_demo!\n");
+    } else {
+        write(1, b"Spawned gpio_demo with PID: ");
+        print_num(pid as u64);
+        write(1, b"\n");
+    }
+
+    // Spawn iio_demo
+    write(1, b"Spawning /bin/iio_demo...\n");
+    let pid = minilib::spawn("/bin/iio_demo");
+    if pid < 0 {
+        write(1, b"Failed to spawn iio_demo!\n");
+    } else {
+        write(1, b"Spawned iio_demo with PID: ");
+        print_num(pid as u64);
+        write(1, b"\n");
+    }
+
     use kernel_abi::BpfAttr;
     use minilib::bpf;
 

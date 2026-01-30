@@ -5,6 +5,7 @@ use limine::memory_map::EntryType;
 use log::{debug, info, trace};
 use mapper::AddressSpaceMapper;
 use spin::RwLock;
+use x86_64::instructions::interrupts;
 use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::mapper::{
     FlagUpdateError, MapToError, MappedFrame, MapperAllSizes, PageTableFrameMapping,
@@ -32,6 +33,7 @@ pub fn init() {
     // SAFETY: We have just created the page table frame and mapped it recursively.
     // pt_vaddr and pt_frame are valid and compatible.
     let address_space = unsafe { AddressSpace::create_from(pt_frame, pt_vaddr) };
+    info!("Initialized kernel address space with frame: {:?}", address_space.level4_frame);
     KERNEL_ADDRESS_SPACE.init_once(|| address_space);
 }
 
@@ -334,50 +336,53 @@ impl AddressSpace {
         let old_pt_segment = VirtualMemoryHigherHalf.reserve(1).unwrap();
 
         let old_pt_page = Page::containing_address(old_pt_segment.start);
-        Self::kernel()
-            .map::<Size4KiB>(
-                old_pt_page,
-                Self::kernel().level4_frame,
-                PageTableFlags::PRESENT | PageTableFlags::NO_EXECUTE,
-            )
-            .unwrap();
-
         let new_pt_page = Page::containing_address(new_pt_segment.start);
-        Self::kernel()
-            .map::<Size4KiB>(
-                new_pt_page,
+
+        Self::kernel().with_active(|kernel_as| {
+            kernel_as
+                .map::<Size4KiB>(
+                    old_pt_page,
+                    kernel_as.level4_frame,
+                    PageTableFlags::PRESENT | PageTableFlags::NO_EXECUTE,
+                )
+                .unwrap();
+
+            kernel_as
+                .map::<Size4KiB>(
+                    new_pt_page,
+                    new_frame,
+                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+                )
+                .unwrap();
+
+            // SAFETY: We have reserved segments in higher-half virtual memory.
+            // We are casting the pointers to PageTable which matches the underlying data structure.
+            // These pointers are valid because we just mapped the frames in the active (kernel) address space.
+            let new_page_table = unsafe { &mut *new_pt_segment.start.as_mut_ptr::<PageTable>() };
+            // SAFETY: Same as above.
+            let old_page_table = unsafe { &*old_pt_segment.start.as_mut_ptr::<PageTable>() };
+
+            new_page_table.zero();
+            new_page_table
+                .iter_mut()
+                .zip(old_page_table.iter())
+                .skip(256)
+                .for_each(|(new_entry, old_entry)| {
+                    *new_entry = old_entry.clone();
+                });
+            let recursive_index = *RECURSIVE_INDEX.get().unwrap();
+            new_page_table[recursive_index].set_frame(
                 new_frame,
                 PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
-            )
-            .unwrap();
+            );
 
-        // SAFETY: We have reserved segments in higher-half virtual memory.
-        // We are casting the pointers to PageTable which matches the underlying data structure.
-        let new_page_table = unsafe { &mut *new_pt_segment.start.as_mut_ptr::<PageTable>() };
-        // SAFETY: We have reserved segments in higher-half virtual memory.
-        // We are casting the pointers to PageTable which matches the underlying data structure.
-        let old_page_table = unsafe { &*old_pt_segment.start.as_mut_ptr::<PageTable>() };
-
-        new_page_table.zero();
-        new_page_table
-            .iter_mut()
-            .zip(old_page_table.iter())
-            .skip(256)
-            .for_each(|(new_entry, old_entry)| {
-                *new_entry = old_entry.clone();
-            });
-        let recursive_index = *RECURSIVE_INDEX.get().unwrap();
-        new_page_table[recursive_index].set_frame(
-            new_frame,
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
-        );
-
-        Self::kernel()
-            .unmap(old_pt_page)
-            .expect("page should be mapped");
-        Self::kernel()
-            .unmap(new_pt_page)
-            .expect("page should be mapped");
+            kernel_as
+                .unmap(old_pt_page)
+                .expect("page should be mapped");
+            kernel_as
+                .unmap(new_pt_page)
+                .expect("page should be mapped");
+        });
 
         // SAFETY: We have initialized the new page table frame and mapped it.
         // We reuse the existing recursive mapping vaddr since we copied the recursive entry.
@@ -386,6 +391,37 @@ impl AddressSpace {
 
     pub fn cr3_value(&self) -> usize {
         self.level4_frame.start_address().as_u64().into_usize()
+    }
+
+    pub fn with_active<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&Self) -> R,
+    {
+        let current_cr3 = Cr3::read();
+        let current_frame = current_cr3.0;
+        let current_flags = current_cr3.1;
+
+        if current_frame == self.level4_frame {
+            return f(self);
+        }
+
+        interrupts::without_interrupts(|| {
+            // SAFETY: We are temporarily switching to this address space to perform operations on it.
+            // We ensure that we switch back to the original address space afterwards.
+            // Since kernel mappings are shared, this is safe for kernel execution.
+            unsafe {
+                Cr3::write(self.level4_frame, current_flags);
+            }
+
+            let result = f(self);
+
+            // SAFETY: Restoring the original address space.
+            unsafe {
+                Cr3::write(current_frame, current_flags);
+            }
+
+            result
+        })
     }
 
     #[allow(dead_code)]

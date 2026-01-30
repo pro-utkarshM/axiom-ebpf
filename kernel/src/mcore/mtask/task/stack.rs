@@ -38,7 +38,9 @@ impl Debug for HigherHalfStack {
 impl Drop for HigherHalfStack {
     fn drop(&mut self) {
         let address_space = AddressSpace::kernel();
-        address_space.unmap_range::<Size4KiB>(&*self.segment, PhysicalMemory::deallocate_frame);
+        address_space.with_active(|address_space| {
+            address_space.unmap_range::<Size4KiB>(&*self.segment, PhysicalMemory::deallocate_frame);
+        });
     }
 }
 
@@ -108,12 +110,14 @@ impl HigherHalfStack {
             Segment::new(segment.start + Size4KiB::SIZE, segment.len - Size4KiB::SIZE);
 
         AddressSpace::kernel()
-            .map_range::<Size4KiB>(
-                &mapped_segment,
-                PhysicalMemory::allocate_frames_non_contiguous(),
-                // FIXME: must be user accessible for user tasks, but can only be user accessible if in lower half, otherwise it can be modified by unrelated tasks/processes
-                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-            )
+            .with_active(|address_space| {
+                address_space.map_range::<Size4KiB>(
+                    &mapped_segment,
+                    PhysicalMemory::allocate_frames_non_contiguous(),
+                    // FIXME: must be user accessible for user tasks, but can only be user accessible if in lower half, otherwise it can be modified by unrelated tasks/processes
+                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                )
+            })
             .map_err(|_| StackAllocationError::OutOfPhysicalMemory)?;
         let rsp = mapped_segment.start + mapped_segment.len;
         Ok(Self {
