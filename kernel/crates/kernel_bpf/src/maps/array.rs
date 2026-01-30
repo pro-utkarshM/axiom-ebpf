@@ -183,6 +183,8 @@ impl<P: PhysicalProfile> BpfMap<P> for ArrayMap<P> {
         let index = Self::parse_key(key)? as usize;
         let guard = self.data.read();
         let slice = guard.get(index)?;
+        // SAFETY: The caller guarantees they hold the lock or ensure validity.
+        // We are just returning a raw pointer to the slice content.
         Some(slice.as_ptr() as *mut u8)
     }
 

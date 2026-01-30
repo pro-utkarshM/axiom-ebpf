@@ -44,7 +44,7 @@ struct StaticPoolInner {
     buffer: UnsafeCell<[u8; DEFAULT_POOL_SIZE]>,
 }
 
-// Safety: The buffer is only accessed while holding the metadata lock,
+// SAFETY: The buffer is only accessed while holding the metadata lock,
 // ensuring exclusive access. The UnsafeCell is used to allow returning
 // 'static mut slices that outlive the lock guard.
 unsafe impl Sync for StaticPoolInner {}
@@ -129,7 +129,7 @@ impl StaticPool {
         metadata.watermark += aligned_size;
         metadata.alloc_count += 1;
 
-        // Safety: We're returning a unique mutable slice from the pool.
+        // SAFETY: We're returning a unique mutable slice from the pool.
         // The slice is valid for 'static because the pool lives for
         // the entire program duration. The buffer pointer is obtained
         // independently of the lock, avoiding Stacked Borrows violations.
@@ -172,7 +172,8 @@ impl StaticPool {
         metadata.watermark = 0;
         metadata.alloc_count = 0;
         // Zero the buffer
-        // Safety: We hold the metadata lock, ensuring exclusive access
+        // SAFETY: We hold the metadata lock, ensuring exclusive access.
+        // This is a test-only function.
         unsafe {
             (*buffer_ptr) = [0u8; DEFAULT_POOL_SIZE];
         }

@@ -371,6 +371,8 @@ impl<P: PhysicalProfile> BpfMap<P> for HashMap<P> {
     unsafe fn lookup_ptr(&self, key: &[u8]) -> Option<*mut u8> {
         let guard = self.storage.read();
         let slice = guard.lookup(key)?;
+        // SAFETY: The caller guarantees they hold the lock or ensure validity.
+        // We are just returning a raw pointer to the slice content.
         Some(slice.as_ptr() as *mut u8)
     }
 

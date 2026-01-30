@@ -136,6 +136,7 @@ mod tests {
                 }
             };
 
+            // SAFETY: In tests, we trust that the address calculation logic above produces valid addresses.
             let ptr = unsafe { UserspacePtr::try_from_usize(addr).unwrap() };
 
             self.mappings.lock().push((addr, size));

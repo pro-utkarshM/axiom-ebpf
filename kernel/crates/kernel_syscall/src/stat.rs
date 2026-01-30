@@ -88,6 +88,8 @@ pub fn sys_fstat<Cx: StatAccess>(
     let stat = cx.fstat(fildes).map_err(|_| EBADF)?;
 
     // Write stat to userspace buffer
+    // SAFETY: buf is a UserspaceMutPtr which has been validated to be non-null.
+    // We assume the userspace memory is writable and valid for the size of UserStat.
     unsafe {
         core::ptr::write(buf.as_mut_ptr(), stat);
     }

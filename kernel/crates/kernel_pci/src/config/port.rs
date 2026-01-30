@@ -68,6 +68,7 @@ impl ReadConfig<u32> for PortCam {
             | u32::from(config.offset);
 
         let mut guard = self.inner.lock();
+        // SAFETY: We hold the lock, ensuring exclusive access to the PCI configuration ports.
         unsafe {
             guard.address.write(address);
             guard.data.read()
@@ -117,6 +118,7 @@ impl WriteConfig<u32> for PortCam {
             | u32::from(config.offset);
 
         let mut guard = self.inner.lock();
+        // SAFETY: We hold the lock, ensuring exclusive access to the PCI configuration ports.
         unsafe {
             guard.address.write(address);
             guard.data.write(value)

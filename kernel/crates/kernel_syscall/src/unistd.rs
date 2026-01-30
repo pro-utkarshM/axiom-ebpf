@@ -23,6 +23,9 @@ pub fn sys_getcwd<Cx: CwdAccess>(
     }
 
     let mut buf = buf;
+    // SAFETY: We checked that the buffer pointer is not null and size is non-zero.
+    // The UserspaceMutPtr type ensures basic validity, and we trust the syscall caller
+    // to provide a valid range for the duration of the call.
     let slice = unsafe { from_raw_parts_mut(buf.as_mut_ptr(), size) };
 
     let cwd = cx.current_working_directory();

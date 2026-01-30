@@ -26,7 +26,10 @@ impl AbsolutePath {
         path.try_into()
     }
 
+    /// # Safety
+    /// The caller must ensure that the path is absolute.
     pub(crate) unsafe fn new_unchecked(path: &Path) -> &Self {
+        // SAFETY: The caller ensures the path is absolute, so the cast is safe.
         unsafe { &*(ptr::from_ref::<Path>(path) as *const AbsolutePath) }
     }
 
@@ -34,7 +37,10 @@ impl AbsolutePath {
     pub fn parent(&self) -> Option<&AbsolutePath> {
         self.inner
             .parent()
-            .map(|v| unsafe { AbsolutePath::new_unchecked(v) })
+            .map(|v| unsafe {
+                // SAFETY: The parent of an absolute path is also absolute (or None).
+                AbsolutePath::new_unchecked(v)
+            })
     }
 }
 
@@ -65,6 +71,7 @@ impl TryFrom<&Path> for &AbsolutePath {
 
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
         if value.is_absolute() {
+            // SAFETY: We checked that the path is absolute.
             Ok(unsafe { &*(ptr::from_ref::<Path>(value) as *const AbsolutePath) })
         } else {
             Err(PathNotAbsoluteError)
@@ -76,6 +83,7 @@ impl ToOwned for AbsolutePath {
     type Owned = AbsoluteOwnedPath;
 
     fn to_owned(&self) -> Self::Owned {
+        // SAFETY: The path is absolute, so the owned version will be too.
         unsafe { AbsoluteOwnedPath::new_unchecked(self.inner.to_owned()) }
     }
 }

@@ -251,6 +251,9 @@ impl<P: PhysicalProfile> Interpreter<P> {
 
     /// Call a helper function.
     fn call_helper(&self, helper_id: i32, args: [u64; 5]) -> Result<u64, BpfError> {
+        // SAFETY: Calling BPF helpers is inherently unsafe as they are extern "C" functions.
+        // We rely on the BPF verifier (in a full implementation) to ensure arguments are valid.
+        // In this interpreter, we assume arguments are reasonably well-formed or the helper handles invalid inputs.
         unsafe {
             match helper_id {
                 // bpf_ktime_get_ns
@@ -355,6 +358,7 @@ impl<P: PhysicalProfile> Interpreter<P> {
         let ctx_size = core::mem::size_of::<BpfContext>() as u64;
 
         if addr >= ctx_addr && addr + size.size_bytes() as u64 <= ctx_addr + ctx_size {
+            // SAFETY: We verified the address and size are within the bounds of the context struct.
             let value = unsafe {
                 match size {
                     MemSize::Byte => core::ptr::read_unaligned(addr as *const u8) as u64,
@@ -374,6 +378,7 @@ impl<P: PhysicalProfile> Interpreter<P> {
 
         if !ctx.data.is_null() && addr >= data_start && addr + size.size_bytes() as u64 <= data_end
         {
+            // SAFETY: We verified the address and size are within the valid data range [data, data_end).
             let value = unsafe {
                 match size {
                     MemSize::Byte => core::ptr::read_unaligned(addr as *const u8) as u64,
@@ -471,6 +476,8 @@ impl<P: PhysicalProfile> BpfExecutor<P> for Interpreter<P> {
 
         // R10 = frame pointer (top of stack)
         let fp = stack.as_ptr() as u64 + P::MAX_STACK_SIZE as u64;
+        // SAFETY: We are initializing the frame pointer R10 with a valid stack address.
+        // This is safe because we just allocated the stack.
         unsafe {
             regs.set_unchecked(Register::R10, fp);
         }

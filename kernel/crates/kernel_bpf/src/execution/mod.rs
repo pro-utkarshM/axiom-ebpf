@@ -61,6 +61,7 @@ impl BpfContext {
     pub fn from_slice(data: &[u8]) -> Self {
         Self {
             data: data.as_ptr(),
+            // SAFETY: data is a valid slice, so adding its length to the pointer remains within the object.
             data_end: unsafe { data.as_ptr().add(data.len()) },
             data_meta: core::ptr::null(),
         }
@@ -71,13 +72,16 @@ impl BpfContext {
         if self.data.is_null() || self.data_end.is_null() {
             0
         } else {
+            // SAFETY: data and data_end are pointers derived from the same object (slice),
+            // so offset_from is well-defined.
             unsafe { self.data_end.offset_from(self.data) as usize }
         }
     }
 }
 
-// Safety: BpfContext only contains raw pointers that are used read-only
+// SAFETY: BpfContext only contains raw pointers that are used read-only
 unsafe impl Send for BpfContext {}
+// SAFETY: BpfContext only contains raw pointers that are used read-only
 unsafe impl Sync for BpfContext {}
 
 /// Result of BPF program execution.

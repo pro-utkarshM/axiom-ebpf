@@ -23,6 +23,8 @@ impl AbsoluteOwnedPath {
         }
     }
 
+    /// # Safety
+    /// The caller must ensure that the inner path is absolute.
     pub(crate) unsafe fn new_unchecked(inner: OwnedPath) -> Self {
         Self { inner }
     }
@@ -47,6 +49,7 @@ impl Deref for AbsoluteOwnedPath {
 
 impl Borrow<AbsolutePath> for AbsoluteOwnedPath {
     fn borrow(&self) -> &AbsolutePath {
+        // SAFETY: AbsoluteOwnedPath guarantees the inner path is absolute.
         unsafe { AbsolutePath::new_unchecked(&self.inner) }
     }
 }
@@ -71,6 +74,7 @@ impl TryFrom<OwnedPath> for AbsoluteOwnedPath {
 
 impl AsRef<AbsolutePath> for AbsoluteOwnedPath {
     fn as_ref(&self) -> &AbsolutePath {
+        // SAFETY: AbsoluteOwnedPath guarantees the inner path is absolute.
         unsafe { AbsolutePath::new_unchecked(&self.inner) }
     }
 }

@@ -95,6 +95,8 @@ impl Vfs {
         } else {
             path.strip_prefix(&***mount_path).unwrap()
         };
+        // SAFETY: We are treating the relative path as an AbsolutePath for the filesystem's internal use.
+        // This effectively treats the filesystem root as '/'.
         let relative_path = unsafe { AbsolutePath::new_unchecked((&relative_path).as_ref()) };
         let mut guard = fs.write();
         guard

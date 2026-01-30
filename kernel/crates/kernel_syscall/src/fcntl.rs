@@ -21,6 +21,9 @@ pub fn sys_open<Cx: CwdAccess + FileAccess>(
     }
 
     let path = {
+        // SAFETY: We verified path_len is within reasonable limits (PATH_MAX).
+        // The pointer comes from a UserspacePtr which we assume points to valid memory
+        // for the specified length.
         let path_bytes = unsafe { from_raw_parts(path.as_ptr(), path_len) };
         let path = core::str::from_utf8(path_bytes).map_err(|_| EINVAL)?;
         let path = Path::new(path);

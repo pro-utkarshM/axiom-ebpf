@@ -14,6 +14,7 @@ mod filenames;
 mod owned;
 
 pub const FILEPATH_SEPARATOR: char = '/';
+// SAFETY: "/" is an absolute path.
 pub const ROOT: &AbsolutePath = unsafe { &*(ptr::from_ref::<str>("/") as *const AbsolutePath) };
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -56,6 +57,7 @@ impl Deref for Path {
 
 impl Path {
     pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> &Path {
+        // SAFETY: Path is a transparent wrapper around str.
         unsafe { &*(ptr::from_ref::<str>(s.as_ref()) as *const Path) }
     }
 
