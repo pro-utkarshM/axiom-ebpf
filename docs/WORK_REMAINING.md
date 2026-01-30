@@ -83,7 +83,7 @@ The core BPF-kernel integration is **working**. Timer and syscall hooks execute 
 | **Syscall hooks** | ✅ Working | `execute_hooks(2, ctx)` in `syscall/mod.rs:51` |
 | BPF helpers | ✅ Done | `bpf_ktime_get_ns`, `bpf_trace_printk`, `bpf_map_*` |
 | **GPIO attach** | ✅ Working | Wired to RPi5 driver & verified with integration tests |
-| **PWM attach** | 🔴 Abstraction only | No hardware driver |
+| **PWM attach** | ✅ Working | Wired to RPi5 driver & enabled via syscalls |
 | **IIO sensor attach** | 🔴 Abstraction only | No hardware driver |
 | **Kprobe** | 🔴 Abstraction only | No kernel infrastructure |
 | **Tracepoint** | 🔴 Abstraction only | No kernel infrastructure |

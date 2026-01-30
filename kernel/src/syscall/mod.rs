@@ -328,3 +328,41 @@ fn dispatch_sys_lseek(_fd: usize, _offset: usize, _whence: usize) -> Result<usiz
 fn dispatch_sys_fstat(_fd: usize, _statbuf: usize) -> Result<usize, Errno> {
     Err(EINVAL)
 }
+
+#[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+fn dispatch_sys_pwm_config(pwm_id: usize, freq_hz: usize) -> Result<usize, Errno> {
+    let ret = pwm::sys_pwm_config(pwm_id, freq_hz);
+    if ret < 0 {
+        Err(EINVAL)
+    } else {
+        Ok(ret as usize)
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+fn dispatch_sys_pwm_write(
+    pwm_id: usize,
+    channel: usize,
+    duty_percent: usize,
+) -> Result<usize, Errno> {
+    let ret = pwm::sys_pwm_write(pwm_id, channel, duty_percent);
+    if ret < 0 {
+        Err(EINVAL)
+    } else {
+        Ok(ret as usize)
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+fn dispatch_sys_pwm_enable(
+    pwm_id: usize,
+    channel: usize,
+    enable: usize,
+) -> Result<usize, Errno> {
+    let ret = pwm::sys_pwm_enable(pwm_id, channel, enable);
+    if ret < 0 {
+        Err(EINVAL)
+    } else {
+        Ok(ret as usize)
+    }
+}

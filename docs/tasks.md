@@ -283,16 +283,16 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
 ## Phase 4: Hardware Attach (RPi5) ❌ NOT STARTED
 
 ### GPIO
-- [ ] RPi5 GPIO driver in kernel
-- [ ] Edge detection interrupt handling
-- [ ] GPIO attach point implementation
-- [ ] BPF execution on GPIO event
+- [x] RPi5 GPIO driver in kernel
+- [x] Edge detection interrupt handling
+- [x] GPIO attach point implementation
+- [x] BPF execution on GPIO event
 
 ### PWM
-- [ ] RPi5 PWM driver in kernel
-- [ ] PWM state change observation
-- [ ] PWM attach point implementation
-- [ ] BPF execution on PWM change
+- [x] RPi5 PWM driver in kernel
+- [x] PWM state change observation
+- [x] PWM attach point implementation
+- [x] BPF execution on PWM change
 
 ### Timer (high-resolution)
 - [ ] ARM timer configuration

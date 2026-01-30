@@ -65,8 +65,13 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
 
             if let Some(manager) = BPF_MANAGER.get() {
                 let mgr = manager.lock();
-                // Get key size from map (for now, assume 4 bytes)
-                let key_size = 4usize; // TODO: get from map def
+
+                // Get map definition to determine key size
+                let key_size = if let Some(def) = mgr.get_map_def(map_id) {
+                    def.key_size as usize
+                } else {
+                    return -1; // Invalid map_fd
+                };
 
                 let key = match read_userspace_slice(key_ptr as usize, key_size) {
                     Ok(k) => k,
@@ -104,9 +109,13 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
 
             if let Some(manager) = BPF_MANAGER.get() {
                 let mgr = manager.lock();
-                // For now, assume fixed sizes (TODO: get from map def)
-                let key_size = 4usize;
-                let value_size = 8usize;
+
+                // Get map definition to determine sizes
+                let (key_size, value_size) = if let Some(def) = mgr.get_map_def(map_id) {
+                    (def.key_size as usize, def.value_size as usize)
+                } else {
+                    return -1; // Invalid map_fd
+                };
 
                 let key = match read_userspace_slice(key_ptr as usize, key_size) {
                     Ok(k) => k,
@@ -145,7 +154,13 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
 
             if let Some(manager) = BPF_MANAGER.get() {
                 let mgr = manager.lock();
-                let key_size = 4usize;
+
+                // Get map definition to determine key size
+                let key_size = if let Some(def) = mgr.get_map_def(map_id) {
+                    def.key_size as usize
+                } else {
+                    return -1; // Invalid map_fd
+                };
 
                 let key = match read_userspace_slice(key_ptr as usize, key_size) {
                     Ok(k) => k,
