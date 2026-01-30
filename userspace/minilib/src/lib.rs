@@ -5,15 +5,166 @@ use core::arch::asm;
 use core::arch::x86_64::_mm_pause;
 use core::ffi::c_int;
 
+// --- Syscall Wrappers ---
+
+pub fn syscall0(n: usize) -> usize {
+    let mut result;
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!(
+        "mov rax, {n}",
+        "int 0x80",
+        "mov {result}, rax",
+        n = in(reg) n,
+        result = lateout(reg) result,
+        );
+    }
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!(
+            "svc #0",
+            in("x8") n,
+            lateout("x0") result,
+            options(nostack)
+        );
+    }
+    result
+}
+
+pub fn syscall1(n: usize, arg1: usize) -> usize {
+    let mut result;
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!(
+        "mov rax,{n}",
+        "mov rdi, {arg1}",
+        "int 0x80",
+        "mov {result}, rax",
+        n = in(reg) n,
+        arg1 = in(reg) arg1,
+        result = lateout(reg) result,
+        );
+    }
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!(
+            "svc #0",
+            in("x8") n,
+            in("x0") arg1,
+            lateout("x0") result,
+            options(nostack)
+        );
+    }
+    result
+}
+
+pub fn syscall2(n: usize, arg1: usize, arg2: usize) -> usize {
+    let mut result;
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!(
+        "mov rax,{n}",
+        "mov rdi, {arg1}",
+        "mov rsi, {arg2}",
+        "int 0x80",
+        "mov {result}, rax",
+        n = in(reg) n,
+        arg1 = in(reg) arg1,
+        arg2 = in(reg) arg2,
+        result = lateout(reg) result,
+        );
+    }
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!(
+            "svc #0",
+            in("x8") n,
+            in("x0") arg1,
+            in("x1") arg2,
+            lateout("x0") result,
+            options(nostack)
+        );
+    }
+    result
+}
+
+pub fn syscall3(n: usize, arg1: usize, arg2: usize, arg3: usize) -> usize {
+    let mut result;
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!(
+        "mov rax,{n}",
+        "mov rdi, {arg1}",
+        "mov rsi, {arg2}",
+        "mov rdx, {arg3}",
+        "int 0x80",
+        "mov {result}, rax",
+        n = in(reg) n,
+        arg1 = in(reg) arg1,
+        arg2 = in(reg) arg2,
+        arg3 = in(reg) arg3,
+        result = lateout(reg) result,
+        );
+    }
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!(
+            "svc #0",
+            in("x8") n,
+            in("x0") arg1,
+            in("x1") arg2,
+            in("x2") arg3,
+            lateout("x0") result,
+            options(nostack)
+        );
+    }
+    result
+}
+
+pub fn syscall4(n: usize, arg1: usize, arg2: usize, arg3: usize, arg4: usize) -> usize {
+    let mut result;
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!(
+        "mov rax,{n}",
+        "mov rdi, {arg1}",
+        "mov rsi, {arg2}",
+        "mov rdx, {arg3}",
+        "mov rcx, {arg4}",
+        "int 0x80",
+        "mov {result}, rax",
+        n = in(reg) n,
+        arg1 = in(reg) arg1,
+        arg2 = in(reg) arg2,
+        arg3 = in(reg) arg3,
+        arg4 = in(reg) arg4,
+        result = lateout(reg) result,
+        );
+    }
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!(
+            "svc #0",
+            in("x8") n,
+            in("x0") arg1,
+            in("x1") arg2,
+            in("x2") arg3,
+            in("x3") arg4,
+            lateout("x0") result,
+            options(nostack)
+        );
+    }
+    result
+}
+
+// --- libc-like functions ---
+
 pub fn exit(code: i32) -> ! {
     syscall1(1, code as usize);
     loop {
         #[cfg(target_arch = "x86_64")]
-        {
-            _mm_pause();
-        }
+        _mm_pause();
         #[cfg(target_arch = "aarch64")]
-        // SAFETY: Safe to execute wfi (wait for interrupt) in the exit loop.
         unsafe {
             asm!("wfi");
         }
@@ -31,6 +182,8 @@ pub fn write(fd: c_int, buf: &[u8]) -> c_int {
 pub fn bpf(cmd: c_int, attr: *const u8, size: c_int) -> c_int {
     syscall3(50, cmd as usize, attr as usize, size as usize) as i32
 }
+
+// --- Time ---
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Default)]
@@ -63,132 +216,58 @@ pub fn msleep(msecs: u64) {
     nanosleep(&req, core::ptr::null_mut());
 }
 
-pub fn syscall0(n: usize) -> usize {
-    let mut result;
-    #[cfg(target_arch = "x86_64")]
-    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-        "mov rax, {n}",
-        "int 0x80",
-        "mov {result}, rax",
-        n = in(reg) n,
-        result = lateout(reg) result,
-        );
-    }
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-            "svc #0",
-            in("x8") n,
-            lateout("x0") result,
-            options(nostack)
-        );
-    }
-    result
+// --- Filesystem ---
+
+pub const SEEK_SET: i32 = 0;
+pub const SEEK_CUR: i32 = 1;
+pub const SEEK_END: i32 = 2;
+
+pub fn lseek(fd: c_int, offset: i64, whence: c_int) -> i64 {
+    syscall3(39, fd as usize, offset as usize, whence as usize) as i64
 }
 
-pub fn syscall1(n: usize, arg1: usize) -> usize {
-    let mut result;
-    #[cfg(target_arch = "x86_64")]
-    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-        "mov rax,{n}",
-        "mov rdi, {arg1}",
-        "int 0x80",
-        "mov {result}, rax",
-        n = in(reg) n,
-        arg1 = in(reg) arg1,
-        result = lateout(reg) result,
-        );
-    }
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-            "svc #0",
-            in("x8") n,
-            in("x0") arg1,
-            lateout("x0") result,
-            options(nostack)
-        );
-    }
-    result
+pub fn close(fd: c_int) -> c_int {
+    syscall1(40, fd as usize) as i32
 }
 
-pub fn syscall2(n: usize, arg1: usize, arg2: usize) -> usize {
-    let mut result;
-    #[cfg(target_arch = "x86_64")]
-    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-        "mov rax,{n}",
-        "mov rdi, {arg1}",
-        "mov rsi, {arg2}",
-        "int 0x80",
-        "mov {result}, rax",
-        n = in(reg) n,
-        arg1 = in(reg) arg1,
-        arg2 = in(reg) arg2,
-        result = lateout(reg) result,
-        );
-    }
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-            "svc #0",
-            in("x8") n,
-            in("x0") arg1,
-            in("x1") arg2,
-            lateout("x0") result,
-            options(nostack)
-        );
-    }
-    result
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct stat {
+    pub st_dev: u64,
+    pub st_ino: u64,
+    pub st_nlink: u64,
+    pub st_mode: u32,
+    pub st_uid: u32,
+    pub st_gid: u32,
+    pub __pad0: u32,
+    pub st_rdev: u64,
+    pub st_size: i64,
+    pub st_blksize: i64,
+    pub st_blocks: i64,
+    pub st_atime: i64,
+    pub st_atime_nsec: i64,
+    pub st_mtime: i64,
+    pub st_mtime_nsec: i64,
+    pub st_ctime: i64,
+    pub st_ctime_nsec: i64,
+    pub __unused: [i64; 3],
 }
 
-pub fn syscall3(n: usize, arg1: usize, arg2: usize, arg3: usize) -> usize {
-    let mut result;
-    #[cfg(target_arch = "x86_64")]
-    // SAFETY: We are executing a syscall using the 'int 0x80' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-        "mov rax,{n}",
-        "mov rdi, {arg1}",
-        "mov rsi, {arg2}",
-        "mov rdx, {arg3}",
-        "int 0x80",
-        "mov {result}, rax",
-        n = in(reg) n,
-        arg1 = in(reg) arg1,
-        arg2 = in(reg) arg2,
-        arg3 = in(reg) arg3,
-        result = lateout(reg) result,
-        );
-    }
-    #[cfg(target_arch = "aarch64")]
-    // SAFETY: We are executing a syscall using the 'svc #0' instruction.
-    // The kernel syscall handler will validate arguments.
-    unsafe {
-        asm!(
-            "svc #0",
-            in("x8") n,
-            in("x0") arg1,
-            in("x1") arg2,
-            in("x2") arg3,
-            lateout("x0") result,
-            options(nostack)
-        );
-    }
-    result
+pub fn fstat(fd: c_int, buf: *mut stat) -> c_int {
+    syscall2(5, fd as usize, buf as usize) as i32
+}
+
+pub const O_CREAT: i32 = 1 << 2;
+pub const O_RDONLY: i32 = 1 << 16;
+pub const O_RDWR: i32 = 1 << 17;
+pub const O_WRONLY: i32 = 1 << 19;
+
+pub fn open(path: &str, flags: c_int, mode: c_int) -> c_int {
+    syscall4(
+        3,
+        path.as_ptr() as usize,
+        path.len(),
+        flags as usize,
+        mode as usize,
+    ) as i32
 }
