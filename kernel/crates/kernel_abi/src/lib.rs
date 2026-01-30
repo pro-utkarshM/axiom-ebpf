@@ -5,7 +5,7 @@ mod errno;
 mod fcntl;
 mod limits;
 mod mman;
-mod syscall;
+pub mod syscall;
 
 pub use bpf::*;
 pub use errno::*;

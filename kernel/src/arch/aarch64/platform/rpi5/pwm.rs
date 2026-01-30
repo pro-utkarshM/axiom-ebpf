@@ -8,7 +8,15 @@ use kernel_bpf::execution::BpfContext;
 
 use super::memory_map::{RP1_PWM0_BASE, RP1_PWM1_BASE};
 use super::mmio::MmioReg;
-use crate::bpf::{ATTACH_TYPE_PWM, BPF_MANAGER};
+use crate::bpf::ATTACH_TYPE_PWM;
+use crate::BPF_MANAGER;
+use spin::Mutex;
+
+/// Global PWM0 instance
+pub static PWM0: Mutex<Rp1Pwm> = Mutex::new(unsafe { Rp1Pwm::pwm0() });
+
+/// Global PWM1 instance
+pub static PWM1: Mutex<Rp1Pwm> = Mutex::new(unsafe { Rp1Pwm::pwm1() });
 
 /// PWM Register offsets
 mod reg {
