@@ -10,8 +10,13 @@ use kernel_bpf::bytecode::insn::BpfInsn;
 use super::validation::{copy_from_userspace, copy_to_userspace, read_userspace_slice};
 use crate::BPF_MANAGER;
 
-pub fn sys_bpf(cmd: usize, attr_ptr: usize, _size: usize) -> isize {
-    // Basic permissions check would go here
+pub fn sys_bpf(cmd: usize, attr_ptr: usize, size: usize) -> isize {
+    // Security Hardening: Validate the attribute size matches expected struct size
+    // This prevents reading past the end of the userspace buffer.
+    if size < size_of::<BpfAttr>() {
+        log::error!("sys_bpf: invalid attribute size {} (expected >= {})", size, size_of::<BpfAttr>());
+        return -1; // EINVAL
+    }
 
     let cmd_u32 = cmd as u32;
 
