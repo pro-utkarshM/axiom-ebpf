@@ -82,7 +82,7 @@ The core BPF-kernel integration is **working**. Timer and syscall hooks execute 
 | BpfManager singleton | ✅ Done | Global program registry in `kernel/src/bpf/mod.rs` |
 | bpf() syscall | ✅ Done | 6 operations: PROG_LOAD, PROG_ATTACH, MAP_CREATE/LOOKUP/UPDATE/DELETE |
 | **Timer hooks** | ✅ Working | `execute_hooks(1, ctx)` in `idt.rs:169` and `interrupts.rs:63` |
-| **Syscall hooks** | ✅ Working | `execute_hooks(2, ctx)` in `syscall/mod.rs:51` |
+| **Syscall hooks** | ✅ Working | `execute_hooks(5, ctx)` in `syscall/mod.rs` (Global Trace) |
 | BPF helpers | ✅ Done | `bpf_ktime_get_ns`, `bpf_trace_printk`, `bpf_map_*`, `bpf_gpio_*`, `bpf_pwm_*` |
 | **GPIO attach** | ✅ Working | Wired to RPi5 driver & verified with integration tests |
 | **PWM attach** | ✅ Working | Wired to RPi5 driver & enabled via syscalls |
