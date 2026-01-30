@@ -13,14 +13,16 @@ Axiom has a solid foundation—the kernel boots on real hardware, **and BPF prog
 ```
 What's Done                          What's Left
 ───────────                          ──────────
-✅ Bootable kernel (x86_64, ARM64)   🔴 PWM/IIO BPF attach wiring
-✅ Memory management                 🔴 Security hardening
-✅ BPF verifier + interpreter        🔴 PWM/IIO hardware drivers
-✅ x86_64 JIT + BPF maps             🔴 Real-time guarantees
-✅ Timer hooks (BPF executes!)       🔴 35 more syscalls
-✅ Syscall hooks (BPF executes!)     🔴 Production validation
-✅ RPi5 GPIO driver (MMIO)           🔴 Kprobe/tracepoint infrastructure
+✅ Bootable kernel (x86_64, ARM64)   🔴 IIO sensor attach wiring
+✅ Memory management                 🔴 IIO hardware drivers
+✅ BPF verifier + interpreter        🔴 Real-time guarantees
+✅ x86_64 JIT + BPF maps             🔴 35 more syscalls
+✅ Timer hooks (BPF executes!)       🔴 Production validation
+✅ Syscall hooks (BPF executes!)     🔴 Kprobe/tracepoint infrastructure
+✅ RPi5 GPIO driver (MMIO)
 ✅ GPIO attach wiring (Verified!)
+✅ RPi5 PWM driver & wiring
+✅ Security hardening (Syscalls)
 ```
 
 ---
@@ -81,7 +83,7 @@ The core BPF-kernel integration is **working**. Timer and syscall hooks execute 
 | bpf() syscall | ✅ Done | 6 operations: PROG_LOAD, PROG_ATTACH, MAP_CREATE/LOOKUP/UPDATE/DELETE |
 | **Timer hooks** | ✅ Working | `execute_hooks(1, ctx)` in `idt.rs:169` and `interrupts.rs:63` |
 | **Syscall hooks** | ✅ Working | `execute_hooks(2, ctx)` in `syscall/mod.rs:51` |
-| BPF helpers | ✅ Done | `bpf_ktime_get_ns`, `bpf_trace_printk`, `bpf_map_*` |
+| BPF helpers | ✅ Done | `bpf_ktime_get_ns`, `bpf_trace_printk`, `bpf_map_*`, `bpf_gpio_*`, `bpf_pwm_*` |
 | **GPIO attach** | ✅ Working | Wired to RPi5 driver & verified with integration tests |
 | **PWM attach** | ✅ Working | Wired to RPi5 driver & enabled via syscalls |
 | **IIO sensor attach** | 🔴 Abstraction only | No hardware driver |
@@ -91,13 +93,11 @@ The core BPF-kernel integration is **working**. Timer and syscall hooks execute 
 **What's working today:**
 ```
 Userspace → bpf(BPF_PROG_LOAD) → program stored
-         → bpf(BPF_PROG_ATTACH, type=1) → attached to timer
-         → Timer interrupt fires → BPF program executes!
+         → bpf(BPF_PROG_ATTACH, type=2) → attached to GPIO
+         → Hardware Interrupt (RPi5 Pin 17) → BPF program executes!
 ```
 
 **Remaining Work:**
-- Wire GPIO attach → RPi5 GPIO driver (~1 week)
-- PWM hardware driver + BPF wiring (~2-3 weeks)
 - IIO sensor driver + BPF wiring (~2-3 weeks)
 - Kprobe/tracepoint kernel infrastructure (~3-4 weeks)
 - Fix hardcoded key_size=4, value_size=8 in syscall handler (~1 day)
@@ -128,30 +128,29 @@ Userspace → bpf(BPF_PROG_LOAD) → program stored
 
 ---
 
-### 5. Security & Safety — 15% Complete 🔴 CRITICAL
+### 5. Security & Safety — 40% Complete ⚠️
 
 | Issue | Current State | Risk Level |
 |-------|---------------|------------|
-| Syscall pointer validation | Hardcoded casts, no validation | **Critical** |
-| Address space verification | Missing (user vs kernel) | **Critical** |
-| Bounds checking | Missing on data lengths | **High** |
-| Alignment validation | Missing | **Medium** |
+| Syscall pointer validation | ✅ Validated | **Low** |
+| Address space verification | ✅ Validated | **Low** |
+| Bounds checking | ✅ Validated | **Low** |
+| Alignment validation | ✅ Validated | **Low** |
 | Unsafe blocks | 70+ undocumented | **High** |
 | Safety certification | Not started | **Blocking** |
 
 **Specific Vulnerabilities:**
-- [x] `kernel/src/syscall/bpf.rs`: User pointers cast directly without validation (Partially fixed with size validation)
+- [x] `kernel/src/syscall/bpf.rs`: User pointers cast directly without validation (Fixed with `validation.rs` wrappers)
 - No SAFETY comments on unsafe blocks
 
 **Remaining Work:**
-- [x] Add pointer validation layer (Size validation added)
 - Document all unsafe blocks (~1 week)
 - Security audit (~2-4 weeks)
 - Define safety certification path (ongoing)
 
 ---
 
-### 6. Hardware Drivers (Robotics) — 25% Complete ⚠️
+### 6. Hardware Drivers (Robotics) — 50% Complete ⚠️
 
 | Driver | Abstraction | Hardware Driver | Wired to BPF | Priority |
 |--------|-------------|-----------------|--------------|----------|
@@ -168,19 +167,12 @@ Userspace → bpf(BPF_PROG_LOAD) → program stored
 **What exists:**
 - `kernel/crates/kernel_bpf/src/attach/` - Full BPF attach abstractions (GPIO, PWM, IIO, Kprobe, Tracepoint)
 - `kernel/src/arch/aarch64/platform/rpi5/gpio.rs` - Real RP1 GPIO driver with MMIO
+- `kernel/src/arch/aarch64/platform/rpi5/pwm.rs` - Real RP1 PWM driver
 - `kernel/src/arch/aarch64/platform/rpi5/uart.rs` - Real UART driver
 
-**The gap:** The `attach()` methods are stubs. Example from `gpio.rs`:
-```rust
-// In a real implementation:
-// 1. Open the GPIO chip via /dev/gpiochipN
-// 2. Request the line with edge detection
-// 3. Register a callback that invokes the BPF program
-```
+**The gap:** The `attach()` methods for IIO/Kprobe are still stubs.
 
 **Remaining Work:**
-- Wire GPIO attach → RPi5 GPIO driver (~1 week)
-- PWM hardware driver + BPF wiring (~2-3 weeks)
 - I2C/SPI bus drivers (~2-3 weeks)
 - IIO subsystem for sensors (~3-4 weeks)
 - Kprobe kernel infrastructure (~2-3 weeks)
@@ -238,7 +230,7 @@ Userspace → bpf(BPF_PROG_LOAD) → program stored
 | BPF engine | 75% | 4-5 weeks |
 | **BPF-kernel wiring** | **60%** | **3-5 weeks** |
 | **Syscalls** | **17%** | **6-8 weeks** |
-| **Security hardening** | **15%** | **4-6 weeks** |
+| **Security hardening** | **40%** | **3-5 weeks** |
 | **Hardware drivers** | **25%** | **6-10 weeks** |
 | Testing | 25% | 6-8 weeks |
 | Production readiness | 10% | 8-12 weeks |

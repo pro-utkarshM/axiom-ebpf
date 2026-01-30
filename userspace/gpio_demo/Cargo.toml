@@ -7,7 +7,3 @@ edition = "2021"
 minilib = { path = "../minilib" }
 kernel_abi = { path = "../../kernel/crates/kernel_abi" }
 
-[profile.release]
-panic = "abort"
-lto = true
-codegen-units = 1

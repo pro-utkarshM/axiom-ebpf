@@ -9,7 +9,7 @@ pub fn exit(code: i32) -> ! {
     syscall1(1, code as usize);
     loop {
         #[cfg(target_arch = "x86_64")]
-        unsafe {
+        {
             _mm_pause();
         }
         #[cfg(target_arch = "aarch64")]
