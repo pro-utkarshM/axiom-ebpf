@@ -43,6 +43,7 @@ pub fn init() {
     log::info!("Setting up kernel page tables...");
 
     // Set up initial page tables
+    // SAFETY: We are in early boot, single-threaded, and have exclusive access to memory.
     unsafe {
         setup_kernel_page_tables(total_memory);
     }
@@ -55,6 +56,7 @@ pub fn init() {
 /// Creates identity mapping for low memory and higher-half mapping for kernel.
 unsafe fn setup_kernel_page_tables(total_memory: usize) {
     #[allow(clippy::deref_addrof)]
+    // SAFETY: We are in early boot (single core) and this is the only access to BOOT_TABLES.
     let boot_tables = unsafe { &mut *(&raw mut BOOT_TABLES) };
 
     // Clear all tables
@@ -97,16 +99,19 @@ unsafe fn setup_kernel_page_tables(total_memory: usize) {
     }
 
     // Configure MAIR (memory attributes)
+    // SAFETY: We are setting up the CPU memory attributes for the first time.
     unsafe {
         paging::configure_mair();
     }
 
     // Configure TCR (translation control)
+    // SAFETY: We are setting up the Translation Control Register.
     unsafe {
         paging::configure_tcr();
     }
 
     // Set TTBR0 (user/identity mapping) and TTBR1 (kernel mapping)
+    // SAFETY: The page tables have been initialized and their physical addresses are valid.
     unsafe {
         paging::set_ttbr0(l0_phys);
         paging::set_ttbr1(l0_phys);
@@ -121,6 +126,7 @@ unsafe fn setup_kernel_page_tables(total_memory: usize) {
 
 /// Get the kernel page table root physical address
 pub fn kernel_page_table_phys() -> usize {
+    // SAFETY: Accessing the address of the static BOOT_TABLES.l0.
     unsafe { &raw const BOOT_TABLES.l0 as usize }
 }
 
@@ -132,6 +138,7 @@ pub fn create_user_address_space() -> Option<*mut PageTable> {
     let frame = phys::allocate_frame()?;
     let l0_ptr = frame.addr() as *mut PageTable;
 
+    // SAFETY: We allocated a fresh frame, so writing to it is safe.
     unsafe {
         // Zero the table
         ptr::write_bytes(l0_ptr, 0, 1);

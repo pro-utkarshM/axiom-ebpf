@@ -76,6 +76,8 @@ pub fn init() {
 
     let ioapic = IoApic {
         _segment: segment,
+        // SAFETY: We have just mapped the IOAPIC base address to `start_addr`.
+        // The `ioapic` crate requires an unsafe call to initialize from a raw address.
         inner: unsafe { x2apic::ioapic::IoApic::new(start_addr.as_u64()) },
     };
     IO_APIC.init_once(|| Mutex::new(ioapic));
@@ -83,6 +85,9 @@ pub fn init() {
 
 #[allow(clippy::similar_names)]
 fn disable_8259() {
+    // SAFETY: We are writing to standard legacy PIC IO ports (0x20, 0x21, 0xA0, 0xA1)
+    // to disable the 8259 PIC. This is a standard initialization step on x86_64
+    // to switch to APIC. We also use port 0x80 for IO delays.
     unsafe {
         let mut cmd_8259a = Port::<u8>::new(0x20);
         let mut data_8259a = Port::<u8>::new(0x21);

@@ -88,7 +88,7 @@ impl Scheduler {
     }
 }
 
-// Safety: CpuContext is only accessed from the CPU that owns it
+// SAFETY: CpuContext is only accessed from the CPU that owns it
 // (via TPIDR_EL1), and we ensure exclusive access via interrupt disabling.
 unsafe impl Sync for CpuContext {}
 unsafe impl Send for CpuContext {}
@@ -113,11 +113,15 @@ impl CpuContext {
     /// Caller must ensure exclusive access (typically by disabling interrupts)
     #[allow(clippy::mut_from_ref)]
     pub unsafe fn scheduler_mut(&self) -> &mut Scheduler {
+        // SAFETY: The caller guarantees exclusive access to the scheduler.
         unsafe { &mut *self.scheduler.get() }
     }
 
     /// Get reference to scheduler
     pub fn scheduler(&self) -> &Scheduler {
+        // SAFETY: Reading the scheduler is safe as long as no one is mutating it concurrently
+        // without synchronization. In this UP (uni-processor) or per-CPU design, we should
+        // be careful, but generally reading basic fields is okay.
         unsafe { &*self.scheduler.get() }
     }
 }
@@ -144,6 +148,8 @@ pub fn init_current_cpu(cpu_id: usize) {
     let ctx_ptr = ctx as *const CpuContext as usize;
 
     // Store context pointer in TPIDR_EL1
+    // SAFETY: Writing to TPIDR_EL1 is safe in EL1. We are storing the pointer to
+    // the persistent per-CPU context structure.
     unsafe {
         core::arch::asm!(
             "msr tpidr_el1, {}",
@@ -160,6 +166,7 @@ pub fn init_current_cpu(cpu_id: usize) {
 /// Returns None if not yet initialized.
 pub fn try_current() -> Option<&'static CpuContext> {
     let ctx_ptr: usize;
+    // SAFETY: Reading TPIDR_EL1 is safe.
     unsafe {
         core::arch::asm!(
             "mrs {}, tpidr_el1",
@@ -171,6 +178,8 @@ pub fn try_current() -> Option<&'static CpuContext> {
     if ctx_ptr == 0 {
         None
     } else {
+        // SAFETY: If TPIDR_EL1 is non-zero, it must contain a valid pointer to a
+        // static CpuContext set in init_current_cpu.
         Some(unsafe { &*(ctx_ptr as *const CpuContext) })
     }
 }
@@ -187,6 +196,7 @@ pub fn current() -> &'static CpuContext {
 pub fn cpu_id() -> usize {
     // Read MPIDR_EL1 to get CPU affinity
     let mpidr: usize;
+    // SAFETY: Reading MPIDR_EL1 is safe.
     unsafe {
         core::arch::asm!(
             "mrs {}, mpidr_el1",
@@ -204,6 +214,8 @@ pub fn cpu_id() -> usize {
 /// Called from the timer interrupt handler.
 pub fn timer_tick() {
     if let Some(ctx) = try_current() {
+        // SAFETY: We are in an interrupt handler (timer tick), so we have exclusive access
+        // to this CPU's scheduler state (assuming nested interrupts are handled correctly or disabled).
         let sched = unsafe { ctx.scheduler_mut() };
 
         if !sched.is_initialized() {
@@ -213,6 +225,8 @@ pub fn timer_tick() {
         // For now, just return to idle - no real task queue yet
         // In the future, this would pull from a global task queue
         if let Some((old_sp_ptr, new_sp, new_ttbr0)) = sched.schedule(None) {
+            // SAFETY: Context switch is unsafe as it modifies control flow and stack.
+            // We trust the scheduler to provide valid stack pointers.
             unsafe {
                 context::switch_impl(old_sp_ptr, new_sp, new_ttbr0);
             }

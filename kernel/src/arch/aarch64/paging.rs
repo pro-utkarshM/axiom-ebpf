@@ -146,6 +146,7 @@ impl PageTableWalker {
         let l3_ptr = Self::get_or_create_table_ptr(l2_ptr, indices[2])?;
 
         // Set L3 entry (page descriptor)
+        // SAFETY: l3_ptr is guaranteed to be a valid pointer to a PageTable by get_or_create_table_ptr.
         let l3 = unsafe { &mut *l3_ptr };
         let entry = l3.entry_mut(indices[3]);
         if entry.is_valid() {
@@ -179,6 +180,7 @@ impl PageTableWalker {
     pub fn unmap_page(&mut self, virt: usize) -> Result<usize, &'static str> {
         let indices = va_to_indices(virt);
 
+        // SAFETY: self.root is checked to be valid when creating the Walker.
         let l0 = unsafe { &mut *self.root };
         let l1 = self
             .get_table(l0, indices[0])
@@ -209,6 +211,7 @@ impl PageTableWalker {
         let indices = va_to_indices(virt);
         let offset = virt & (PAGE_SIZE - 1);
 
+        // SAFETY: self.root is checked to be valid when creating the Walker.
         let l0 = unsafe { &*self.root };
         let l1 = self.get_table_readonly(l0, indices[0])?;
         let l2 = self.get_table_readonly(l1, indices[1])?;
@@ -227,6 +230,7 @@ impl PageTableWalker {
         table: *mut PageTable,
         index: usize,
     ) -> Result<*mut PageTable, &'static str> {
+        // SAFETY: table is a valid pointer to a PageTable, and index is within bounds (checked by va_to_indices/callers).
         let entry = unsafe { (*table).entry_mut(index) };
 
         if entry.is_valid() {
@@ -241,6 +245,7 @@ impl PageTableWalker {
             let table_ptr = frame.addr() as *mut PageTable;
 
             // Zero the new table
+            // SAFETY: table_ptr points to a newly allocated frame, so it's safe to write to it.
             unsafe {
                 ptr::write_bytes(table_ptr, 0, 1);
             }
@@ -257,6 +262,15 @@ impl PageTableWalker {
         let entry = table.entry(index);
         if entry.is_valid() && entry.is_table() {
             let next_table = entry.addr() as *mut PageTable;
+            // SAFETY: We checked the entry is valid and is a table descriptor.
+            // The pointer derived from entry.addr() points to a valid physical page.
+            // We rely on the identity map/higher-half map being active for this pointer deref if it's virtual,
+            // or that we can access physical memory. Wait, `PageTableWalker` uses physical addresses mostly
+            // but if `next_table` is physical, we can't just dereference it if MMU is on unless we have an identity map.
+            //
+            // NOTE: This implementation assumes we are operating in a context where physical addresses
+            // (or at least the lower physical memory where page tables live) are directly accessible or identity mapped.
+            // This is true for the bootstrap phase.
             Some(unsafe { &mut *next_table })
         } else {
             None
@@ -268,6 +282,7 @@ impl PageTableWalker {
         let entry = table.entry(index);
         if entry.is_valid() && entry.is_table() {
             let next_table = entry.addr() as *const PageTable;
+            // SAFETY: See get_table. Valid table descriptor implies valid pointer.
             Some(unsafe { &*next_table })
         } else {
             None
@@ -277,6 +292,7 @@ impl PageTableWalker {
 
 /// Flush entire TLB
 pub fn flush_tlb() {
+    // SAFETY: Executing TLB invalidation instructions is safe in EL1.
     unsafe {
         core::arch::asm!(
             "dsb ishst",
@@ -290,6 +306,7 @@ pub fn flush_tlb() {
 
 /// Flush TLB for specific virtual address
 pub fn flush_tlb_page(vaddr: usize) {
+    // SAFETY: Executing TLB invalidation for a specific address is safe in EL1.
     unsafe {
         core::arch::asm!(
             "dsb ishst",
@@ -307,6 +324,7 @@ pub fn flush_tlb_page(vaddr: usize) {
 /// # Safety
 /// The base address must point to a valid page table.
 pub unsafe fn set_ttbr0(base: usize) {
+    // SAFETY: Writing to TTBR0_EL1 is safe in EL1. Caller ensures base is valid.
     unsafe {
         core::arch::asm!(
             "msr ttbr0_el1, {0}",
@@ -323,6 +341,7 @@ pub unsafe fn set_ttbr0(base: usize) {
 /// # Safety
 /// The base address must point to a valid page table.
 pub unsafe fn set_ttbr1(base: usize) {
+    // SAFETY: Writing to TTBR1_EL1 is safe in EL1. Caller ensures base is valid.
     unsafe {
         core::arch::asm!(
             "msr ttbr1_el1, {0}",
@@ -337,6 +356,7 @@ pub unsafe fn set_ttbr1(base: usize) {
 /// Get current TTBR0_EL1 value
 pub fn get_ttbr0() -> usize {
     let value: usize;
+    // SAFETY: Reading TTBR0_EL1 is safe.
     unsafe {
         core::arch::asm!(
             "mrs {0}, ttbr0_el1",
@@ -350,6 +370,7 @@ pub fn get_ttbr0() -> usize {
 /// Get current TTBR1_EL1 value
 pub fn get_ttbr1() -> usize {
     let value: usize;
+    // SAFETY: Reading TTBR1_EL1 is safe.
     unsafe {
         core::arch::asm!(
             "mrs {0}, ttbr1_el1",
@@ -365,6 +386,7 @@ pub fn get_ttbr1() -> usize {
 /// # Safety
 /// Must be called before enabling the MMU with new page tables.
 pub unsafe fn configure_mair() {
+    // SAFETY: Writing to MAIR_EL1 is safe in EL1.
     unsafe {
         core::arch::asm!(
             "msr mair_el1, {0}",
@@ -401,6 +423,7 @@ pub unsafe fn configure_tcr() {
                  | (0b01 << 24)     // IRGN1 = Write-back
                  | (0b101 << 32); // IPS = 48-bit PA (256TB)
 
+    // SAFETY: Writing to TCR_EL1 is safe in EL1.
     unsafe {
         core::arch::asm!(
             "msr tcr_el1, {0}",

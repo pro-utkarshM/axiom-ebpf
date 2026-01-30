@@ -46,6 +46,7 @@ impl InterruptIndex {
 pub fn create_idt() -> InterruptDescriptorTable {
     let mut idt = InterruptDescriptorTable::new();
 
+    // SAFETY: Setting up the IDT with valid handler functions and stack indices.
     unsafe {
         idt.double_fault
             .set_handler_fn(double_fault_handler)
@@ -73,6 +74,8 @@ pub fn create_idt() -> InterruptDescriptorTable {
     idt[InterruptIndex::LapicErr.as_u8()].set_handler_fn(lapic_err_interrupt_handler);
     idt[InterruptIndex::Spurious.as_u8()].set_handler_fn(spurious_interrupt_handler);
 
+    // SAFETY: Setting up the syscall handler with the correct privilege level and interrupt handling.
+    // Transmuting to the correct function signature is required for the interrupt handler.
     unsafe {
         idt[InterruptIndex::Syscall.as_u8()]
             .set_handler_fn(transmute::<
@@ -157,6 +160,8 @@ pub extern "sysv64" fn syscall_handler_impl(
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     // 1. Acknowledge interrupt first
+    // SAFETY: We are acknowledging the interrupt to the LAPIC.
+    // Safe because we are in an interrupt handler.
     unsafe {
         end_of_interrupt();
     }
@@ -171,6 +176,8 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
 
     // 3. Schedule next task
     let ctx = ExecutionContext::load();
+    // SAFETY: Rescheduling is safe here as we are in an interrupt handler
+    // and the scheduler handles context switching.
     unsafe {
         ctx.scheduler_mut().reschedule();
     }
@@ -358,15 +365,18 @@ extern "x86-interrupt" fn device_not_available_handler(_stack_frame: InterruptSt
     let fx_area_ptr = fx_area.start().as_mut_ptr::<u8>();
     drop(guard); // _fxrstor could trigger #NM again, so we must drop the guard before calling it
 
+    // SAFETY: Clearing the Task Switched flag in CR0.
     unsafe { asm!("clts") };
 
     // saving is done every time we switch tasks, so we can only restore it here
     if fresh {
+        // SAFETY: Initializing FPU and saving state.
         unsafe {
             asm!("finit");
             _fxsave(fx_area_ptr);
         }
     }
+    // SAFETY: Restoring FPU state.
     unsafe { _fxrstor(fx_area_ptr) };
 }
 
@@ -377,6 +387,7 @@ extern "x86-interrupt" fn device_not_available_handler(_stack_frame: InterruptSt
 #[inline]
 pub unsafe fn end_of_interrupt() {
     let ctx = ExecutionContext::load();
+    // SAFETY: Forwarding to LAPIC driver which handles the register write.
     unsafe { ctx.lapic().lock().end_of_interrupt() };
 }
 

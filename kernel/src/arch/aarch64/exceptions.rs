@@ -30,6 +30,8 @@ pub struct ExceptionVectorTable {
 
 /// Initialize exception vector table
 pub fn init_exception_vector() {
+    // SAFETY: We are writing to the VBAR_EL1 system register to set the exception vector table base address.
+    // The address is derived from a valid linker symbol.
     unsafe {
         let vbar = exception_vector_base as *const () as u64;
         asm!("msr vbar_el1, {}", in(reg) vbar);
@@ -48,6 +50,7 @@ pub extern "C" fn handle_sync_exception() {
     let elr: u64;
     let far: u64;
 
+    // SAFETY: Reading exception registers (ESR, ELR, FAR) is safe in an exception handler.
     unsafe {
         asm!("mrs {}, esr_el1", out(reg) esr);
         asm!("mrs {}, elr_el1", out(reg) elr);

@@ -23,6 +23,8 @@ pub fn acpi_tables() -> &'static Mutex<AcpiTables<AcpiHandlerImpl>> {
 pub fn init() {
     ACPI_TABLES.init_once(|| {
         let rsdp = PhysAddr::new(RSDP_REQUEST.get_response().unwrap().address() as u64);
+        // SAFETY: We trust the RSDP address provided by the Limine bootloader response.
+        // The bootloader guarantees this points to a valid RSDP structure.
         let tables = unsafe { AcpiTables::from_rsdp(AcpiHandlerImpl, rsdp.as_u64().into_usize()) }
             .expect("should be able to get ACPI tables from rsdp");
 
@@ -34,6 +36,9 @@ pub fn init() {
 pub struct AcpiHandlerImpl;
 
 impl AcpiHandler for AcpiHandlerImpl {
+    // SAFETY: This function is unsafe because it creates a physical mapping. The caller (acpi crate)
+    // guarantees that the physical address and size are valid for the ACPI tables it needs to access.
+    // We validate that the size fits within our mapping capabilities.
     unsafe fn map_physical_region<T>(
         &self,
         physical_address: usize,
@@ -55,6 +60,8 @@ impl AcpiHandler for AcpiHandlerImpl {
             )
             .expect("should be able to map the ACPI region");
 
+        // SAFETY: We have just mapped the physical memory to the virtual segment.start.
+        // The pointers and lengths are derived from this successful mapping.
         unsafe {
             PhysicalMapping::new(
                 physical_address,
@@ -76,6 +83,8 @@ impl AcpiHandler for AcpiHandlerImpl {
             .expect("address should have been mapped");
 
         let segment = Segment::new(vaddr, region.mapped_length() as u64);
+        // SAFETY: We own this segment (created in map_physical_region) and are now releasing it.
+        // It's not used after this point.
         unsafe {
             assert!(VirtualMemoryHigherHalf.release(segment));
         }

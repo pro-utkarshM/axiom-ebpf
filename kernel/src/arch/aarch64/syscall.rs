@@ -14,6 +14,8 @@ pub fn handle_syscall() {
     log::debug!("Syscall handler called");
 
     // Advance ELR past SVC instruction (4 bytes)
+    // SAFETY: We are modifying ELR_EL1 to skip the SVC instruction.
+    // This is necessary to resume execution at the next instruction.
     unsafe {
         let mut elr: u64;
         core::arch::asm!("mrs {}, elr_el1", out(reg) elr);
@@ -40,6 +42,8 @@ pub extern "C" fn syscall_handler_with_context(
     let result = crate::syscall::dispatch_syscall(x8, x0, x1, x2, x3, x4, x5);
 
     // Advance past SVC instruction
+    // SAFETY: We are modifying ELR_EL1 to skip the SVC instruction.
+    // This is necessary to resume execution at the next instruction.
     unsafe {
         let mut elr: u64;
         core::arch::asm!("mrs {}, elr_el1", out(reg) elr);

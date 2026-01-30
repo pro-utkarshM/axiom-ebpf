@@ -186,22 +186,27 @@ impl Rp1Uart {
 
     // Register accessors
     fn reg_dr(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::DR) }
     }
 
     fn reg_fr(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::FR) }
     }
 
     fn reg_lcrh(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::LCRH) }
     }
 
     fn reg_cr(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::CR) }
     }
 
     fn reg_icr(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::ICR) }
     }
 }

@@ -241,11 +241,15 @@ pub fn set_priority(_irq: u32, _priority: u8) {}
 
 #[cfg(feature = "rpi5")]
 unsafe fn read_gicd(offset: usize) -> u32 {
+    // SAFETY: The caller ensures the offset is valid. Accessing GICD memory is safe
+    // as it's a dedicated MMIO region.
     unsafe { core::ptr::read_volatile((GICD + offset) as *const u32) }
 }
 
 #[cfg(feature = "rpi5")]
 unsafe fn write_gicd(offset: usize, value: u32) {
+    // SAFETY: The caller ensures the offset is valid. Accessing GICD memory is safe
+    // as it's a dedicated MMIO region.
     unsafe {
         core::ptr::write_volatile((GICD + offset) as *mut u32, value);
     }
@@ -253,11 +257,15 @@ unsafe fn write_gicd(offset: usize, value: u32) {
 
 #[cfg(feature = "rpi5")]
 unsafe fn read_gicc(offset: usize) -> u32 {
+    // SAFETY: The caller ensures the offset is valid. Accessing GICC memory is safe
+    // as it's a dedicated MMIO region.
     unsafe { core::ptr::read_volatile((GICC + offset) as *const u32) }
 }
 
 #[cfg(feature = "rpi5")]
 unsafe fn write_gicc(offset: usize, value: u32) {
+    // SAFETY: The caller ensures the offset is valid. Accessing GICC memory is safe
+    // as it's a dedicated MMIO region.
     unsafe {
         core::ptr::write_volatile((GICC + offset) as *mut u32, value);
     }

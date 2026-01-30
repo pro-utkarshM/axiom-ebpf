@@ -151,7 +151,7 @@ pub trait U64Ext {
 impl U64Ext for u64 {
     #[allow(clippy::cast_possible_truncation)]
     fn into_usize(self) -> usize {
-        // Safety: we know that we are on 64-bit, so this is correct
+        // SAFETY: we know that we are on 64-bit, so this is correct
         unsafe { usize::try_from(self).unwrap_unchecked() }
     }
 }

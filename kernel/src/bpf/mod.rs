@@ -158,7 +158,7 @@ impl BpfManager {
     /// pointer is in use. The returned pointer is only valid while the map lock
     /// is held by the caller.
     pub unsafe fn map_lookup_ptr(&self, map_id: u32, key: &[u8]) -> Option<*mut u8> {
-        // Safety: caller ensures map will not be resized or deleted while pointer is in use
+        // SAFETY: caller ensures map will not be resized or deleted while pointer is in use
         unsafe { self.maps.get(map_id as usize)?.lookup_ptr(key) }
     }
 

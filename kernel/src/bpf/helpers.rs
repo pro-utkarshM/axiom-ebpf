@@ -15,6 +15,8 @@ pub extern "C" fn bpf_gpio_read(pin: u32) -> i64 {
         if pin >= 28 {
             return -1;
         }
+        // SAFETY: Creating a temporary GPIO interface to access hardware registers.
+        // Safe because we are on RPi5 (checked by feature) and access is stateless/exclusive.
         let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
         if gpio.read(pin as u8) { 1 } else { 0 }
     }
@@ -38,6 +40,8 @@ pub extern "C" fn bpf_gpio_write(pin: u32, value: u32) -> i64 {
         if pin >= 28 {
             return -1;
         }
+        // SAFETY: Creating a temporary GPIO interface to access hardware registers.
+        // Safe because we are on RPi5 (checked by feature) and access is stateless/exclusive.
         let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
         if value != 0 {
             gpio.set_high(pin as u8);
@@ -64,6 +68,8 @@ pub extern "C" fn bpf_gpio_toggle(pin: u32) -> i64 {
         if pin >= 28 {
             return -1;
         }
+        // SAFETY: Creating a temporary GPIO interface to access hardware registers.
+        // Safe because we are on RPi5 (checked by feature) and access is stateless/exclusive.
         let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
         gpio.toggle(pin as u8);
         // Return new value
@@ -87,6 +93,8 @@ pub extern "C" fn bpf_gpio_set_output(pin: u32, initial_high: u32) -> i64 {
         if pin >= 28 {
             return -1;
         }
+        // SAFETY: Creating a temporary GPIO interface to access hardware registers.
+        // Safe because we are on RPi5 (checked by feature) and access is stateless/exclusive.
         let gpio = unsafe { crate::arch::aarch64::platform::rpi5::gpio::Rp1Gpio::new() };
         gpio.configure_output(pin as u8, initial_high != 0);
         0
@@ -139,7 +147,7 @@ pub extern "C" fn bpf_pwm_write(pwm_id: u32, channel: u32, duty_percent: u32) ->
 
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_trace_printk(fmt: *const u8, _size: u32) -> i32 {
-    // Safety: The verifier guarantees that the string is in valid memory.
+    // SAFETY: The verifier guarantees that the string is in valid memory.
     unsafe {
         let s = core::ffi::CStr::from_ptr(fmt as *const core::ffi::c_char);
         if let Ok(msg) = s.to_str() {
@@ -162,9 +170,9 @@ pub extern "C" fn bpf_map_lookup_elem(map_id: u32, key_ptr: *const u8) -> *mut u
         let manager = manager.lock();
         if let Some(def) = manager.get_map_def(map_id) {
             let key_size = def.key_size as usize;
-            // Safety: Verifier ensures valid memory access for key_ptr
+            // SAFETY: Verifier ensures valid memory access for key_ptr
             let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
-            // Safety: Manager lock ensures map stability
+            // SAFETY: Manager lock ensures map stability
             if let Some(ptr) = unsafe { manager.map_lookup_ptr(map_id, key) } {
                 return ptr;
             }
@@ -192,7 +200,7 @@ pub extern "C" fn bpf_map_update_elem(
             let key_size = def.key_size as usize;
             let value_size = def.value_size as usize;
 
-            // Safety: Verifier ensures valid memory access
+            // SAFETY: Verifier ensures valid memory access
             let key = unsafe { core::slice::from_raw_parts(key_ptr, key_size) };
             let value = unsafe { core::slice::from_raw_parts(value_ptr, value_size) };
 
@@ -256,7 +264,7 @@ pub extern "C" fn bpf_ringbuf_output(
 
     if let Some(manager) = BPF_MANAGER.get() {
         let manager = manager.lock();
-        // Safety: Verifier ensures valid memory access for data_ptr
+        // SAFETY: Verifier ensures valid memory access for data_ptr
         let data = unsafe { core::slice::from_raw_parts(data_ptr, data_size as usize) };
 
         if manager.ringbuf_output(map_id, data, flags).is_ok() {

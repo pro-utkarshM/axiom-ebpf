@@ -76,7 +76,7 @@ impl Scheduler {
         {
             unsafe { asm!("clts") };
             unsafe {
-                // Safety: Safe because we hold a mutable reference to the fx_area
+                // SAFETY: Safe because we hold a mutable reference to the fx_area
                 _fxsave(fx_area.start().as_mut_ptr::<u8>());
             }
         }

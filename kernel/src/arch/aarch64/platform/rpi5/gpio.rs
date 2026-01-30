@@ -216,11 +216,13 @@ impl Rp1Gpio {
     // Register accessors
     fn reg_status(&self, pin: u8) -> MmioReg<u32> {
         let offset = (pin as usize) * GPIO_REG_STRIDE + reg::STATUS;
+        // SAFETY: The base address is valid (checked at creation) and the offset is within bounds for the pin.
         unsafe { MmioReg::new(self.base + offset) }
     }
 
     fn reg_ctrl(&self, pin: u8) -> MmioReg<u32> {
         let offset = (pin as usize) * GPIO_REG_STRIDE + reg::CTRL;
+        // SAFETY: The base address is valid (checked at creation) and the offset is within bounds for the pin.
         unsafe { MmioReg::new(self.base + offset) }
     }
 
@@ -287,6 +289,7 @@ impl Rp1Gpio {
 #[inline]
 fn read_timer_counter() -> u64 {
     let cntvct: u64;
+    // SAFETY: Reading the virtual counter register is safe in EL1/EL0.
     unsafe {
         core::arch::asm!("mrs {}, cntvct_el0", out(reg) cntvct);
     }
@@ -297,6 +300,7 @@ fn read_timer_counter() -> u64 {
 #[inline]
 fn get_timer_frequency() -> u64 {
     let cntfrq: u64;
+    // SAFETY: Reading the counter frequency register is safe in EL1/EL0.
     unsafe {
         core::arch::asm!("mrs {}, cntfrq_el0", out(reg) cntfrq);
     }
@@ -322,6 +326,8 @@ fn counter_to_ns(counter: u64) -> u64 {
 /// Called from the main IRQ handler when an RP1 GPIO interrupt fires.
 /// Scans all pins for pending events and invokes attached BPF programs.
 pub fn handle_interrupt() {
+    // SAFETY: We are in an interrupt handler, so we can access the GPIO hardware.
+    // The base address is correct for RPi5.
     let gpio = unsafe { Rp1Gpio::new() };
 
     // Get timestamp at interrupt entry for accurate timing
@@ -365,7 +371,7 @@ pub fn handle_interrupt() {
                 value,
             };
 
-            // Safety: Transmuting struct to slice for read-only access
+            // SAFETY: Transmuting struct to slice for read-only access
             let slice = unsafe {
                 core::slice::from_raw_parts(
                     &event as *const _ as *const u8,

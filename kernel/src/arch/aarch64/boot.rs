@@ -10,6 +10,10 @@ static mut BOOT_INFO: BootInfo = BootInfo { dtb_addr: 0 };
 /// # Safety
 /// The caller must ensure that `dtb_addr` is a valid physical address.
 pub unsafe fn init_boot_info(dtb_addr: usize) {
+    // SAFETY: We are writing to the static BOOT_INFO. This is safe because:
+    // 1. We are in early boot (single core)
+    // 2. interrupts are disabled
+    // 3. This function is only called once from _start
     unsafe {
         BOOT_INFO.dtb_addr = dtb_addr;
     }
@@ -18,6 +22,8 @@ pub unsafe fn init_boot_info(dtb_addr: usize) {
 /// Get boot information
 #[allow(clippy::deref_addrof)]
 pub fn boot_info() -> &'static BootInfo {
+    // SAFETY: BOOT_INFO is initialized in _start before any other code runs.
+    // It is effectively read-only after initialization.
     unsafe { &*(&raw const BOOT_INFO) }
 }
 
@@ -28,6 +34,7 @@ pub fn boot_info() -> &'static BootInfo {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
     // Initialize boot info
+    // SAFETY: This is the first thing we do. dtb_addr is passed in x0 from the bootloader.
     unsafe {
         init_boot_info(dtb_addr);
     }
@@ -44,6 +51,7 @@ pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
     super::platform::rpi5::init();
 
     // Parse device tree to get memory information
+    // SAFETY: dtb_addr is guaranteed to be a valid physical address by the bootloader protocol.
     if let Err(e) = unsafe { super::dtb::parse(dtb_addr) } {
         // Log error but continue - we can fall back to hardcoded values
         log::warn!("Failed to parse DTB: {}", e);
@@ -54,5 +62,7 @@ pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
         fn kernel_main() -> !;
     }
 
+    // SAFETY: We have initialized the minimal environment required for the kernel main.
+    // This function never returns.
     unsafe { kernel_main() }
 }

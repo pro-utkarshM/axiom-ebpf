@@ -34,14 +34,14 @@ impl<T: Copy> MmioReg<T> {
     /// Read the current value of the register
     #[inline(always)]
     pub fn read(&self) -> T {
-        // Safety: Address was validated at construction time
+        // SAFETY: Address was validated at construction time.
         unsafe { read_volatile(self.addr) }
     }
 
     /// Write a value to the register
     #[inline(always)]
     pub fn write(&self, value: T) {
-        // Safety: Address was validated at construction time
+        // SAFETY: Address was validated at construction time.
         unsafe { write_volatile(self.addr, value) }
     }
 

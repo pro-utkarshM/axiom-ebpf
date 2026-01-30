@@ -13,9 +13,11 @@ use crate::BPF_MANAGER;
 use crate::bpf::ATTACH_TYPE_PWM;
 
 /// Global PWM0 instance
+// SAFETY: We initialize the PWM0 driver with the correct base address for RPi5.
 pub static PWM0: Mutex<Rp1Pwm> = Mutex::new(unsafe { Rp1Pwm::pwm0() });
 
 /// Global PWM1 instance
+// SAFETY: We initialize the PWM1 driver with the correct base address for RPi5.
 pub static PWM1: Mutex<Rp1Pwm> = Mutex::new(unsafe { Rp1Pwm::pwm1() });
 
 /// PWM Register offsets
@@ -239,6 +241,8 @@ impl Rp1Pwm {
             };
 
             // Serialize event to byte slice for context
+            // SAFETY: We are creating a slice from a local struct reference. The pointer is valid
+            // and the size is correct. The lifetime is bound to the scope of this function.
             let data = unsafe {
                 core::slice::from_raw_parts(
                     &event as *const _ as *const u8,
@@ -253,26 +257,32 @@ impl Rp1Pwm {
 
     // Register accessors
     fn reg_ctl(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::CTL) }
     }
 
     fn reg_sta(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::STA) }
     }
 
     fn reg_rng1(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::RNG1) }
     }
 
     fn reg_dat1(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::DAT1) }
     }
 
     fn reg_rng2(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::RNG2) }
     }
 
     fn reg_dat2(&self) -> MmioReg<u32> {
+        // SAFETY: The base address is valid and the offset is within bounds.
         unsafe { MmioReg::new(self.base + reg::DAT2) }
     }
 }

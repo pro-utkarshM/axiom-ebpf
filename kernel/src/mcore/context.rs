@@ -94,7 +94,7 @@ impl ExecutionContext {
 
     pub fn scheduler(&self) -> &Scheduler {
         unsafe {
-            // Safety: this is safe because either:
+            // SAFETY: this is safe because either:
             // * there is a mutable reference that is used for rescheduling, in which case we are
             //   not currently executing this
             // * there is no mutable reference, in which case we are safe because we're not modifying

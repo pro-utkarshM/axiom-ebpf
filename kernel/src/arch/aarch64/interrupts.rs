@@ -109,6 +109,7 @@ fn handle_timer_interrupt() {
 
 /// Clear timer interrupt
 fn clear_timer_interrupt() {
+    // SAFETY: Writing to CNTP_CTL_EL0 is safe in EL1/EL0. Disabling the timer clears the interrupt.
     unsafe {
         // Disable timer to clear interrupt
         core::arch::asm!("msr cntp_ctl_el0, {}", in(reg) 0u64);
@@ -117,6 +118,8 @@ fn clear_timer_interrupt() {
 
 /// Set next timer interrupt
 fn set_next_timer() {
+    // SAFETY: Accessing timer registers (CNTP_*) is safe in EL1. We are configuring the
+    // physical timer for the next scheduler tick.
     unsafe {
         // Read timer frequency
         let cntfrq: u64;

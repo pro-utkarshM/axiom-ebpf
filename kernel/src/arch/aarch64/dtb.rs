@@ -44,6 +44,9 @@ static mut DTB_INFO: DeviceTreeInfo = DeviceTreeInfo::empty();
 /// # Safety
 /// The dtb_addr must point to a valid device tree blob in memory
 pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> {
+    // SAFETY: We are accessing raw memory at dtb_addr. The caller guarantees this is valid.
+    // We also modify the static DTB_INFO, which is safe because we are single-threaded
+    // during early boot.
     unsafe {
         if dtb_addr == 0 {
             return Err("DTB address is null");
@@ -110,10 +113,13 @@ pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> {
 /// Get the parsed device tree information
 #[allow(clippy::deref_addrof)]
 pub fn info() -> &'static DeviceTreeInfo {
+    // SAFETY: DTB_INFO is initialized in parse() during early boot and is effectively
+    // read-only afterwards.
     unsafe { &*(&raw const DTB_INFO) }
 }
 
 /// Get the total memory available
 pub fn total_memory() -> usize {
+    // SAFETY: Reading initialized static global.
     unsafe { DTB_INFO.total_memory }
 }

@@ -45,7 +45,7 @@ pub fn init() {
         let file_addr = VirtAddr::from_ptr(kernel_file.file().addr());
         let file_size = kernel_file.file().size().into_usize();
         let file_slice = unsafe {
-            // Safety: we keep the part of limine's higher half mapping that contains
+            // SAFETY: we keep the part of limine's higher half mapping that contains
             // the kernel file, so dereferencing that pointer is safe.
             from_raw_parts(file_addr.as_mut_ptr::<u8>(), file_size)
         };
