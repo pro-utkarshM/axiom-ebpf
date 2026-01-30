@@ -15,6 +15,7 @@ pub const ATTACH_TYPE_TIMER: u32 = 1;
 pub const ATTACH_TYPE_GPIO: u32 = 2;
 pub const ATTACH_TYPE_PWM: u32 = 3;
 pub const ATTACH_TYPE_IIO: u32 = 4;
+pub const ATTACH_TYPE_SYSCALL: u32 = 5;
 
 pub struct BpfManager {
     programs: Vec<BpfProgram<ActiveProfile>>,
@@ -96,6 +97,12 @@ impl BpfManager {
                     Ok(res) => {
                         if attach_type == ATTACH_TYPE_IIO {
                             log::info!("IIO BPF Hook [id={}] returned: {}", prog_id, res);
+                        } else if attach_type == ATTACH_TYPE_SYSCALL {
+                            // Log only interesting syscalls or just debug info
+                            // For demo purposes, we log everything if it returns non-zero
+                            if res != 0 {
+                                log::info!("Syscall Trace [id={}] syscall_nr: {}", prog_id, res);
+                            }
                         }
                     }
                     Err(e) => log::error!("BPF Hook [id={}] failed: {:?}", prog_id, e),

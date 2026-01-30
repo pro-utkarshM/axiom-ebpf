@@ -14,6 +14,7 @@ kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
 init = { path = "userspace/init", artifact = "bin", target = "x86_64-unknown-none" }
 gpio_demo = { path = "userspace/gpio_demo", artifact = "bin", target = "x86_64-unknown-none" }
 iio_demo = { path = "userspace/iio_demo", artifact = "bin", target = "x86_64-unknown-none" }
+syscall_demo = { path = "userspace/syscall_demo", artifact = "bin", target = "x86_64-unknown-none" }
 
 [workspace]
 exclude = [
@@ -38,6 +39,7 @@ members = [
   "userspace/minilib",
   "userspace/gpio_demo",
   "userspace/iio_demo",
+  "userspace/syscall_demo",
 ]
 default-members = [
   ".",

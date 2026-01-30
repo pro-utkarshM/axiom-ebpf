@@ -1028,6 +1028,7 @@ dependencies = [
  "init",
  "kernel",
  "ovmf-prebuilt",
+ "syscall_demo",
 ]
 
 [[package]]
@@ -1430,6 +1431,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "syscall_demo"
+version = "0.1.0"
+dependencies = [
+ "kernel_abi",
+ "minilib",
 ]
 
 [[package]]

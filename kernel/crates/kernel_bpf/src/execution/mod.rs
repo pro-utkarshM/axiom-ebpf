@@ -47,6 +47,22 @@ pub struct BpfContext {
     pub data_meta: *const u8,
 }
 
+/// Context for syscall tracepoints.
+///
+/// This structure matches the layout expected by BPF programs attaching to
+/// syscall entry tracepoints.
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SyscallTraceContext {
+    pub syscall_nr: u64,
+    pub arg1: u64,
+    pub arg2: u64,
+    pub arg3: u64,
+    pub arg4: u64,
+    pub arg5: u64,
+    pub arg6: u64,
+}
+
 impl BpfContext {
     /// Create an empty context.
     pub const fn empty() -> Self {
