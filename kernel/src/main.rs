@@ -2,28 +2,17 @@
 #![no_main]
 extern crate alloc;
 
-use alloc::boxed::Box;
-use alloc::sync::Arc;
-use core::error::Error;
 use core::panic::PanicInfo;
 
-use ext2::Ext2Fs;
 #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
 use kernel::arch::traits::Architecture;
-use kernel::driver::KernelDeviceId;
-use kernel::driver::block::BlockDevices;
-use kernel::file::ext2::VirtualExt2Fs;
-use kernel::file::vfs;
 #[cfg(target_arch = "x86_64")]
 use kernel::limine::BASE_REVISION;
 #[cfg(target_arch = "x86_64")]
 use kernel::mcore;
 #[cfg(target_arch = "x86_64")]
 use kernel::mcore::mtask::process::Process;
-use kernel_device::block::{BlockBuf, BlockDevice};
-use kernel_vfs::path::{AbsolutePath, ROOT};
 use log::{error, info};
-use spin::RwLock;
 #[cfg(target_arch = "x86_64")]
 use x86_64::instructions::hlt;
 
@@ -74,7 +63,7 @@ unsafe extern "C" fn main() -> ! {
 
 #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
 #[unsafe(export_name = "kernel_main")]
-unsafe extern "C" fn main() -> ! {
+unsafe extern "C" fn main() -> ! { unsafe {
     kernel::init();
 
     info!("ARM64 kernel started");
@@ -97,7 +86,7 @@ unsafe extern "C" fn main() -> ! {
         // Wait for interrupt - timer will fire and potentially reschedule
         hlt();
     }
-}
+}}
 
 #[cfg(target_arch = "riscv64")]
 #[unsafe(export_name = "kernel_main")]

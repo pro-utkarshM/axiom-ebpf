@@ -8,7 +8,7 @@ use core::ptr;
 use super::mem::{
     ENTRIES_PER_TABLE, L0_SHIFT, L1_SHIFT, L2_SHIFT, L3_SHIFT, PAGE_SIZE, mair, pte_flags,
 };
-use super::phys::{self, PhysFrame};
+use super::phys::{self};
 
 /// Page table entry for 4KB granule
 #[repr(transparent)]

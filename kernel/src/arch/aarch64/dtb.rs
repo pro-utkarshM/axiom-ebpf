@@ -43,7 +43,7 @@ static mut DTB_INFO: DeviceTreeInfo = DeviceTreeInfo::empty();
 ///
 /// # Safety
 /// The dtb_addr must point to a valid device tree blob in memory
-pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> {
+pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> { unsafe {
     if dtb_addr == 0 {
         return Err("DTB address is null");
     }
@@ -103,7 +103,7 @@ pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> {
     );
 
     Ok(())
-}
+}}
 
 /// Get the parsed device tree information
 pub fn info() -> &'static DeviceTreeInfo {

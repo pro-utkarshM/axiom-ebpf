@@ -195,7 +195,7 @@ pub fn init_task_stack_with_arg(stack_top: usize, entry_point: usize, arg: usize
         frame.x29 = 0;
 
         // x30 (LR) = trampoline - switch_impl returns here
-        frame.x30 = task_entry_trampoline as usize as u64;
+        frame.x30 = task_entry_trampoline as *const () as usize as u64;
     }
 
     frame_ptr as usize

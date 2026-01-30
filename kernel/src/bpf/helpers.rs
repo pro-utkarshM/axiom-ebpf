@@ -118,12 +118,12 @@ pub extern "C" fn bpf_pwm_write(pwm_id: u32, channel: u32, duty_percent: u32) ->
 
         match pwm_id {
             0 => {
-                let mut pwm = PWM0.lock();
+                let pwm = PWM0.lock();
                 pwm.set_duty_cycle(channel as u8, duty_percent);
                 0
             }
             1 => {
-                let mut pwm = PWM1.lock();
+                let pwm = PWM1.lock();
                 pwm.set_duty_cycle(channel as u8, duty_percent);
                 0
             }

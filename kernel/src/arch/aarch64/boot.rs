@@ -6,9 +6,9 @@ pub struct BootInfo {
 static mut BOOT_INFO: BootInfo = BootInfo { dtb_addr: 0 };
 
 /// Initialize boot information
-pub unsafe fn init_boot_info(dtb_addr: usize) {
+pub unsafe fn init_boot_info(dtb_addr: usize) { unsafe {
     BOOT_INFO.dtb_addr = dtb_addr;
-}
+}}
 
 /// Get boot information
 pub fn boot_info() -> &'static BootInfo {

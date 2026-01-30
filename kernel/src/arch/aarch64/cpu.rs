@@ -4,7 +4,6 @@
 //! CPU-local data. Uses TPIDR_EL1 to store a pointer to the CPU context.
 
 use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicUsize, Ordering};
 
 use spin::Once;
 

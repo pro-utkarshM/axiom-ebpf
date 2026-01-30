@@ -5,12 +5,12 @@
 
 use kernel_bpf::attach::PwmEvent;
 use kernel_bpf::execution::BpfContext;
+use spin::Mutex;
 
 use super::memory_map::{RP1_PWM0_BASE, RP1_PWM1_BASE};
 use super::mmio::MmioReg;
-use crate::bpf::ATTACH_TYPE_PWM;
 use crate::BPF_MANAGER;
-use spin::Mutex;
+use crate::bpf::ATTACH_TYPE_PWM;
 
 /// Global PWM0 instance
 pub static PWM0: Mutex<Rp1Pwm> = Mutex::new(unsafe { Rp1Pwm::pwm0() });

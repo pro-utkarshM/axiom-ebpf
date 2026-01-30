@@ -1,6 +1,5 @@
 //! PWM Syscall Implementation
 
-use kernel_abi::syscall::{SYS_PWM_CONFIG, SYS_PWM_ENABLE, SYS_PWM_WRITE};
 
 use crate::arch::aarch64::platform::rpi5::pwm::{PWM0, PWM1};
 
@@ -12,13 +11,13 @@ use crate::arch::aarch64::platform::rpi5::pwm::{PWM0, PWM1};
 pub fn sys_pwm_config(pwm_id: usize, freq_hz: usize) -> isize {
     match pwm_id {
         0 => {
-            let mut pwm = PWM0.lock();
+            let pwm = PWM0.lock();
             pwm.set_frequency(1, freq_hz as u32);
             pwm.set_frequency(2, freq_hz as u32); // Set both channels to same freq for now
             0
         }
         1 => {
-            let mut pwm = PWM1.lock();
+            let pwm = PWM1.lock();
             pwm.set_frequency(1, freq_hz as u32);
             pwm.set_frequency(2, freq_hz as u32);
             0
@@ -40,12 +39,12 @@ pub fn sys_pwm_write(pwm_id: usize, channel: usize, duty_percent: usize) -> isiz
 
     match pwm_id {
         0 => {
-            let mut pwm = PWM0.lock();
+            let pwm = PWM0.lock();
             pwm.set_duty_cycle(channel as u8, duty_percent as u32);
             0
         }
         1 => {
-            let mut pwm = PWM1.lock();
+            let pwm = PWM1.lock();
             pwm.set_duty_cycle(channel as u8, duty_percent as u32);
             0
         }
@@ -66,7 +65,7 @@ pub fn sys_pwm_enable(pwm_id: usize, channel: usize, enable: usize) -> isize {
 
     match pwm_id {
         0 => {
-            let mut pwm = PWM0.lock();
+            let pwm = PWM0.lock();
             if enable != 0 {
                 pwm.enable(channel as u8);
             } else {
@@ -75,7 +74,7 @@ pub fn sys_pwm_enable(pwm_id: usize, channel: usize, enable: usize) -> isize {
             0
         }
         1 => {
-            let mut pwm = PWM1.lock();
+            let pwm = PWM1.lock();
             if enable != 0 {
                 pwm.enable(channel as u8);
             } else {

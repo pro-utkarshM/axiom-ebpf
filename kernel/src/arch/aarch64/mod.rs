@@ -13,8 +13,6 @@ pub mod platform;
 pub mod shutdown;
 pub mod syscall;
 
-use aarch64_cpu::asm::barrier;
-use aarch64_cpu::registers::*;
 
 use crate::arch::traits::Architecture;
 

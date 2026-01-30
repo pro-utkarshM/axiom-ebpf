@@ -5,9 +5,9 @@
 use core::ptr;
 
 use super::dtb;
-use super::mem::{self, PAGE_SIZE, pte_flags};
-use super::paging::{self, PageTable, PageTableWalker};
-use super::phys::{self, PhysFrame};
+use super::mem::{self, pte_flags};
+use super::paging::{self, PageTable};
+use super::phys::{self};
 
 /// Kernel L0 page table (statically allocated for bootstrap)
 #[repr(C, align(4096))]

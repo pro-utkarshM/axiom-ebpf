@@ -4,12 +4,6 @@ use core::slice::{from_raw_parts, from_raw_parts_mut};
 #[cfg(target_arch = "x86_64")]
 use access::KernelAccess;
 use kernel_abi::{EINVAL, Errno, syscall_name};
-use kernel_syscall::access::FileAccess;
-use kernel_syscall::fcntl::sys_open;
-use kernel_syscall::mman::sys_mmap;
-use kernel_syscall::stat::sys_fstat;
-use kernel_syscall::unistd::{sys_close, sys_getcwd, sys_lseek, sys_read, sys_write};
-use kernel_syscall::{UserspaceMutPtr, UserspacePtr};
 use log::{error, trace};
 #[cfg(target_arch = "x86_64")]
 use x86_64::instructions::hlt;
@@ -354,11 +348,7 @@ fn dispatch_sys_pwm_write(
 }
 
 #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
-fn dispatch_sys_pwm_enable(
-    pwm_id: usize,
-    channel: usize,
-    enable: usize,
-) -> Result<usize, Errno> {
+fn dispatch_sys_pwm_enable(pwm_id: usize, channel: usize, enable: usize) -> Result<usize, Errno> {
     let ret = pwm::sys_pwm_enable(pwm_id, channel, enable);
     if ret < 0 {
         Err(EINVAL)
