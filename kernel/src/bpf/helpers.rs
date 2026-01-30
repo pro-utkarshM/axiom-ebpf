@@ -98,6 +98,45 @@ pub extern "C" fn bpf_gpio_set_output(pin: u32, initial_high: u32) -> i64 {
     }
 }
 
+/// BPF helper: Write to PWM channel
+///
+/// Arguments:
+/// - pwm_id: 0 or 1
+/// - channel: 1 or 2
+/// - duty_percent: 0-100
+///
+/// Returns 0 on success, -1 on error.
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_pwm_write(pwm_id: u32, channel: u32, duty_percent: u32) -> i64 {
+    #[cfg(all(target_arch = "aarch64", feature = "rpi5"))]
+    {
+        use crate::arch::aarch64::platform::rpi5::pwm::{PWM0, PWM1};
+
+        if channel < 1 || channel > 2 {
+            return -1;
+        }
+
+        match pwm_id {
+            0 => {
+                let mut pwm = PWM0.lock();
+                pwm.set_duty_cycle(channel as u8, duty_percent);
+                0
+            }
+            1 => {
+                let mut pwm = PWM1.lock();
+                pwm.set_duty_cycle(channel as u8, duty_percent);
+                0
+            }
+            _ => -1,
+        }
+    }
+    #[cfg(not(all(target_arch = "aarch64", feature = "rpi5")))]
+    {
+        let _ = (pwm_id, channel, duty_percent);
+        -1
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn bpf_trace_printk(fmt: *const u8, _size: u32) -> i32 {
     // Safety: The verifier guarantees that the string is in valid memory.

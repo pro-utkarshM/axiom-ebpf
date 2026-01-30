@@ -56,6 +56,21 @@ pub extern "C" fn bpf_ringbuf_output(
     0
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_gpio_read(_pin: u32) -> i64 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_gpio_write(_pin: u32, _value: u32) -> i64 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bpf_pwm_write(_pwm_id: u32, _channel: u32, _duty: u32) -> i64 {
+    0
+}
+
 /// Helper to create an interpreter for the active profile.
 fn interpreter() -> Interpreter<ActiveProfile> {
     Interpreter::new()

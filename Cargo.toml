@@ -12,6 +12,7 @@ file_structure = { path = "userspace/file_structure" }
 kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
 
 init = { path = "userspace/init", artifact = "bin", target = "x86_64-unknown-none" }
+gpio_demo = { path = "userspace/gpio_demo", artifact = "bin", target = "x86_64-unknown-none" }
 
 [workspace]
 exclude = [
@@ -34,6 +35,7 @@ members = [
   "userspace/file_structure",
   "userspace/init",
   "userspace/minilib",
+  "userspace/gpio_demo",
 ]
 default-members = [
   ".",

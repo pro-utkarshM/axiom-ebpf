@@ -314,7 +314,7 @@ Axiom is a **complete operating system kernel** with BPF as a first-class primit
 - [ ] `hello.bpf.c` - minimal program, prints to serial
 - [ ] `counter.bpf.c` - counts events using map
 - [ ] `syscall_trace.bpf.c` - traces syscall entry/exit
-- [ ] `gpio_toggle.bpf.c` - toggles LED on button press
+- [x] `userspace/gpio_demo` - toggles LED on button press (Rust)
 - [ ] `safety_interlock.bpf.c` - emergency stop demo
 
 ### Performance Benchmarks

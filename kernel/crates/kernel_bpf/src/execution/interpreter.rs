@@ -30,6 +30,10 @@ unsafe extern "C" {
     fn bpf_map_update_elem(map_id: u32, key: *const u8, value: *const u8, flags: u64) -> i32;
     fn bpf_map_delete_elem(map_id: u32, key: *const u8) -> i32;
     fn bpf_ringbuf_output(map_id: u32, data: *const u8, size: u64, flags: u64) -> i64;
+    // Robotics helpers
+    fn bpf_gpio_read(pin: u32) -> i64;
+    fn bpf_gpio_write(pin: u32, value: u32) -> i64;
+    fn bpf_pwm_write(pwm_id: u32, channel: u32, duty: u32) -> i64;
 }
 
 /// BPF bytecode interpreter.
@@ -274,6 +278,16 @@ impl<P: PhysicalProfile> Interpreter<P> {
                     bpf_ringbuf_output(args[0] as u32, args[1] as *const u8, args[2], args[3])
                         as u64,
                 ),
+
+                // Robotics Helpers
+                // bpf_gpio_set (1003) -> bpf_gpio_write
+                1003 => Ok(bpf_gpio_write(args[0] as u32, args[1] as u32) as u64),
+
+                // bpf_gpio_get (1004) -> bpf_gpio_read
+                1004 => Ok(bpf_gpio_read(args[0] as u32) as u64),
+
+                // bpf_pwm_write (1005)
+                1005 => Ok(bpf_pwm_write(args[0] as u32, args[1] as u32, args[2] as u32) as u64),
 
                 // Unknown helper
                 _ => Err(BpfError::InvalidHelper(helper_id)),
@@ -583,6 +597,21 @@ mod helpers_stub {
         0
     }
 
+    #[unsafe(no_mangle)]
+    pub extern "C" fn bpf_gpio_read(_pin: u32) -> i64 {
+        0
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn bpf_gpio_write(_pin: u32, _value: u32) -> i64 {
+        0
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn bpf_pwm_write(_pwm_id: u32, _channel: u32, _duty: u32) -> i64 {
+        0
+    }
+
     pub fn get_test_map_value() -> u64 {
         TEST_MAP_VALUE.load(Ordering::SeqCst)
     }
@@ -754,6 +783,27 @@ mod tests {
 
         let result = interpreter.execute(&program, &ctx);
         // Helper should return 0 on success
+        assert_eq!(result, Ok(0));
+    }
+
+    #[test]
+    fn execute_gpio_helper() {
+        // Test that calling bpf_gpio_write helper works
+        // Helper 1003 = bpf_gpio_write(pin, value) -> result
+
+        let program = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
+            .insn(BpfInsn::mov64_imm(1, 17)) // r1 = pin 17
+            .insn(BpfInsn::mov64_imm(2, 1))  // r2 = value 1
+            .insn(BpfInsn::call(1003))       // r0 = bpf_gpio_write(r1, r2)
+            .exit()
+            .build()
+            .expect("valid program");
+
+        let interpreter = Interpreter::<ActiveProfile>::new();
+        let ctx = BpfContext::empty();
+
+        let result = interpreter.execute(&program, &ctx);
+        // Helper stub returns 0
         assert_eq!(result, Ok(0));
     }
 }
