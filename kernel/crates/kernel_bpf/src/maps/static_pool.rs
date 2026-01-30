@@ -135,7 +135,6 @@ impl StaticPool {
         // independently of the lock, avoiding Stacked Borrows violations.
         Some(unsafe { core::slice::from_raw_parts_mut(buffer_ptr.add(start), size) })
     }
-    }
 
     /// Get the remaining capacity in the pool.
     pub fn remaining() -> usize {
