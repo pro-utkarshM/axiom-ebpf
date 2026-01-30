@@ -358,7 +358,8 @@ impl<P: PhysicalProfile> Interpreter<P> {
         let data_start = ctx.data as u64;
         let data_end = ctx.data_end as u64;
 
-        if !ctx.data.is_null() && addr >= data_start && addr + size.size_bytes() as u64 <= data_end {
+        if !ctx.data.is_null() && addr >= data_start && addr + size.size_bytes() as u64 <= data_end
+        {
             let value = unsafe {
                 match size {
                     MemSize::Byte => core::ptr::read_unaligned(addr as *const u8) as u64,
