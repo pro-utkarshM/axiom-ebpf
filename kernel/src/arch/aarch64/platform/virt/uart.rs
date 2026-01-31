@@ -27,6 +27,7 @@ mod fr {
     /// Transmit FIFO full
     pub const TXFF: u32 = 1 << 5;
     /// Receive FIFO empty
+    #[allow(dead_code)]
     pub const RXFE: u32 = 1 << 4;
     /// UART busy transmitting
     pub const BUSY: u32 = 1 << 3;

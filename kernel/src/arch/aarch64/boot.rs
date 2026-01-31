@@ -69,7 +69,7 @@ pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
 
     // Jump to kernel main
     // SAFETY: kernel_main is defined in the kernel crate and has the correct signature.
-    unsafe extern "Rust" {
+    unsafe extern "C" {
         fn kernel_main() -> !;
     }
 

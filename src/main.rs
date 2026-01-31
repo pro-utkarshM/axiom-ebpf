@@ -1,11 +1,21 @@
+#![cfg_attr(target_os = "none", no_std)]
+#![cfg_attr(target_os = "none", no_main)]
+
+#[cfg(not(target_os = "none"))]
 use clap::Parser;
 
+#[cfg(not(target_os = "none"))]
 static KERNEL_BINARY: &str = env!("KERNEL_BINARY");
+#[cfg(not(target_os = "none"))]
 static BOOTABLE_ISO: &str = env!("BOOTABLE_ISO");
+#[cfg(not(target_os = "none"))]
 static OVMF_CODE: &str = env!("OVMF_X86_64_CODE");
+#[cfg(not(target_os = "none"))]
 static OVMF_VARS: &str = env!("OVMF_X86_64_VARS");
+#[cfg(not(target_os = "none"))]
 static DISK_IMAGE: &str = env!("DISK_IMAGE");
 
+#[cfg(not(target_os = "none"))]
 #[derive(Parser)]
 struct Args {
     #[arg(
@@ -27,6 +37,7 @@ struct Args {
     mem: String,
 }
 
+#[cfg(not(target_os = "none"))]
 fn main() {
     println!("KERNEL_BINARY: {KERNEL_BINARY}");
     println!("BOOTABLE_ISO: {BOOTABLE_ISO}");
@@ -124,4 +135,16 @@ continue"
 
     let status = cmd.status().unwrap();
     assert!(status.success());
+}
+
+#[cfg(target_os = "none")]
+#[no_mangle]
+pub extern "C" fn _start() -> ! {
+    loop {}
+}
+
+#[cfg(target_os = "none")]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {}
 }

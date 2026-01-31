@@ -456,18 +456,18 @@ axiom-ebpf/
 
 **Goal:** Demonstrate runtime programmability.
 
-| Week | Deliverable |
-|------|-------------|
-| 1 | BPF manager in kernel (load/unload programs) |
-| 2 | bpf() syscall implementation |
-| 3 | Timer interrupt attach point (BPF runs on tick) |
-| 4 | End-to-end demo: load program, see it execute |
+| Week | Deliverable | Status |
+|------|-------------|--------|
+| 1 | BPF manager in kernel (load/unload programs) | ✅ Complete |
+| 2 | bpf() syscall implementation | ✅ Complete |
+| 3 | Timer interrupt attach point (BPF runs on tick) | ✅ Complete |
+| 4 | End-to-end demo: load program, see it execute | ⚠️ Partial (Kernel-only) |
 
 **Success criteria:**
-- Boot Axiom
-- Load BPF program from userspace
-- Program executes on timer interrupt
-- Output visible in serial console
+- Boot Axiom ✅
+- Load BPF program from userspace (Pending userspace boot on AArch64)
+- Program executes on timer interrupt ✅
+- Output visible in serial console ✅
 
 ### Phase 2: Hardware Attach Points
 

@@ -10,7 +10,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=limine.conf");
 
-    let limine_dir = limine();
+    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap();
 
     let kernel = PathBuf::from(
         std::env::var_os("CARGO_BIN_FILE_KERNEL_kernel")
@@ -18,18 +18,28 @@ fn main() {
     );
     println!("cargo:rustc-env=KERNEL_BINARY={}", kernel.display());
 
-    let iso = build_iso(&limine_dir, &kernel);
-    println!("cargo:rustc-env=BOOTABLE_ISO={}", iso.display());
+    if target_arch == "x86_64" {
+        let limine_dir = limine();
+        let iso = build_iso(&limine_dir, &kernel);
+        println!("cargo:rustc-env=BOOTABLE_ISO={}", iso.display());
 
-    let ovmf = ovmf();
-    println!(
-        "cargo:rustc-env=OVMF_X86_64_CODE={}",
-        ovmf.get_file(Arch::X64, FileType::Code).display()
-    );
-    println!(
-        "cargo:rustc-env=OVMF_X86_64_VARS={}",
-        ovmf.get_file(Arch::X64, FileType::Vars).display()
-    );
+        let ovmf = ovmf();
+        println!(
+            "cargo:rustc-env=OVMF_X86_64_CODE={}",
+            ovmf.get_file(Arch::X64, FileType::Code).display()
+        );
+        println!(
+            "cargo:rustc-env=OVMF_X86_64_VARS={}",
+            ovmf.get_file(Arch::X64, FileType::Vars).display()
+        );
+    } else {
+        // Provide dummy values for other architectures to satisfy env!() in main.rs if it's compiled
+        // though in our case we cfg-ed it out in main.rs.
+        // However, it's safer to just not break the build if possible.
+        println!("cargo:rustc-env=BOOTABLE_ISO=unused");
+        println!("cargo:rustc-env=OVMF_X86_64_CODE=unused");
+        println!("cargo:rustc-env=OVMF_X86_64_VARS=unused");
+    }
 
     let disk_image = build_os_disk_image();
     println!("cargo:rustc-env=DISK_IMAGE={}", disk_image.display());

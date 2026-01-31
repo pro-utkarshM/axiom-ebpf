@@ -7,9 +7,16 @@ use alloc::collections::BTreeSet;
 use log::debug;
 pub use segment::*;
 use thiserror::Error;
-use x86_64::VirtAddr;
+
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::VirtAddr;
+
+#[cfg(not(target_arch = "x86_64"))]
+pub use addr::VirtAddr;
 
 mod segment;
+#[cfg(not(target_arch = "x86_64"))]
+mod addr;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Error)]
 #[error("segment already reserved")]

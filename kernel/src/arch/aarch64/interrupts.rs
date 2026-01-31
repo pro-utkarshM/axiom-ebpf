@@ -84,8 +84,11 @@ pub extern "C" fn handle_irq() {
 
     // Check for spurious interrupt
     if irq == gic::irq::SPURIOUS {
+        log::trace!("Spurious IRQ received");
         return;
     }
+
+    log::trace!("Handling IRQ {}", irq);
 
     // Dispatch based on IRQ number
     match irq {
@@ -107,18 +110,23 @@ pub extern "C" fn handle_irq() {
 
 /// Handle timer interrupt
 fn handle_timer_interrupt() {
+    log::trace!("Timer interrupt started");
     // Clear and reset timer for next interrupt
     clear_timer_interrupt();
     set_next_timer();
 
     // Run BPF hooks (AttachType::Timer = 1)
     if let Some(manager) = crate::BPF_MANAGER.get() {
+        log::trace!("Executing BPF timer hooks");
         let ctx = kernel_bpf::execution::BpfContext::empty();
         manager.lock().execute_hooks(1, &ctx);
+        log::trace!("BPF timer hooks executed");
     }
 
     // Trigger scheduler tick (may cause context switch)
+    log::trace!("Calling timer_tick");
     super::cpu::timer_tick();
+    log::trace!("timer_tick returned");
 }
 
 /// Clear timer interrupt

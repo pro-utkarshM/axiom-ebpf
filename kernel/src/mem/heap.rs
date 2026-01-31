@@ -2,16 +2,36 @@ use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
 
 use conquer_once::spin::OnceCell;
+use kernel_virtual_memory::VirtAddr;
 use log::info;
-use x86_64::VirtAddr;
-use x86_64::structures::paging::page::PageRangeInclusive;
-use x86_64::structures::paging::{Page, PageTableFlags, Size2MiB, Size4KiB};
 
-use crate::mem::address_space::{AddressSpace, virt_addr_from_page_table_indices};
+#[cfg(target_arch = "x86_64")]
+use x86_64::structures::paging::page::PageRangeInclusive;
+#[cfg(target_arch = "x86_64")]
+use x86_64::structures::paging::{Page, PageTableFlags, Size2MiB, Size4KiB};
+#[cfg(target_arch = "x86_64")]
+use crate::mem::address_space::virt_addr_from_page_table_indices;
+#[cfg(target_arch = "x86_64")]
 use crate::mem::phys::PhysicalMemory;
 
+#[cfg(target_arch = "aarch64")]
+use crate::arch::aarch64::paging::PageTableFlags;
+#[cfg(target_arch = "aarch64")]
+use crate::arch::types::{Page, PageRangeInclusive, Size4KiB};
+#[cfg(target_arch = "aarch64")]
+use crate::arch::aarch64::phys;
+#[cfg(target_arch = "aarch64")]
+use crate::U64Ext;
+
+use crate::mem::address_space::AddressSpace;
+
 static HEAP_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(target_arch = "x86_64")]
 static HEAP_START: VirtAddr = virt_addr_from_page_table_indices([257, 0, 0, 0], 0);
+
+#[cfg(target_arch = "aarch64")]
+static HEAP_START: VirtAddr = VirtAddr::new(crate::arch::aarch64::mem::kernel::HEAP_BASE as u64);
 
 /// Runtime-initialized heap sizes based on available physical memory.
 static HEAP_SIZES: OnceCell<HeapSizes> = OnceCell::uninit();
@@ -40,7 +60,7 @@ impl HeapSizes {
             let calculated = usable_ram_bytes / 1024;
             // Clamp between 2 MiB and 128 MiB
             let clamped = calculated.clamp(2 * 1024 * 1024, 128 * 1024 * 1024);
-            // Round up to next 2MiB boundary (required for stage2 to start at 2MiB boundary)
+            // Round up to next 2MiB boundary (required for stage2 to start at a 2MiB boundary)
             clamped.div_ceil(MIB_2) * MIB_2
         };
 
@@ -70,7 +90,10 @@ impl HeapSizes {
 static ALLOCATOR: linked_list_allocator::LockedHeap = linked_list_allocator::LockedHeap::empty();
 
 pub(in crate::mem) fn init(address_space: &AddressSpace, usable_physical_memory_bytes: usize) {
+    #[cfg(target_arch = "x86_64")]
     assert!(PhysicalMemory::is_initialized());
+    #[cfg(target_arch = "aarch64")]
+    assert!(phys::is_initialized());
 
     // Calculate and store heap sizes based on available RAM
     let heap_sizes = HeapSizes::from_physical_memory(usable_physical_memory_bytes);
@@ -84,26 +107,55 @@ pub(in crate::mem) fn init(address_space: &AddressSpace, usable_physical_memory_
 
     let initial_heap_size = HEAP_SIZES.get().unwrap().initial();
 
-    info!("initializing heap at {HEAP_START:p}");
-    let page_range = PageRangeInclusive::<Size4KiB> {
-        start: Page::containing_address(HEAP_START),
-        end: Page::containing_address(HEAP_START + initial_heap_size as u64 - 1),
-    };
+    #[cfg(target_arch = "x86_64")]
+    {
+        info!("initializing heap at {HEAP_START:p}");
+        let page_range = PageRangeInclusive::<Size4KiB> {
+            start: Page::containing_address(HEAP_START),
+            end: Page::containing_address(HEAP_START + initial_heap_size as u64 - 1),
+        };
 
-    address_space
-        .map_range(
-            page_range,
-            PhysicalMemory::allocate_frames_non_contiguous(),
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-        )
-        .expect("should be able to map heap");
+        address_space
+            .map_range(
+                page_range,
+                PhysicalMemory::allocate_frames_non_contiguous(),
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+            )
+            .expect("should be able to map heap");
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        let heap_start = HEAP_START.as_u64();
+        info!("initializing heap at {:#x}", heap_start);
+        let num_pages = initial_heap_size / 4096;
+        let frames = core::iter::from_fn(phys::allocate_frame::<Size4KiB>).take(num_pages);
+
+        let page_range = PageRangeInclusive::<Size4KiB> {
+            start: Page::containing_address(HEAP_START),
+            end: Page::containing_address(HEAP_START + (initial_heap_size as u64 - 1)),
+        };
+
+        address_space
+            .map_range(
+                page_range,
+                frames,
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+            )
+            .expect("should be able to map heap");
+    }
 
     // SAFETY: We are initializing the global allocator with a valid memory range
     // that has just been mapped. This is called only once during initialization.
     unsafe {
+        #[cfg(target_arch = "x86_64")]
+        let ptr = HEAP_START.as_mut_ptr();
+        #[cfg(target_arch = "aarch64")]
+        let ptr = HEAP_START.as_u64().into_usize() as *mut u8;
+
         ALLOCATOR
             .lock()
-            .init(HEAP_START.as_mut_ptr(), initial_heap_size);
+            .init(ptr, initial_heap_size);
     }
 
     HEAP_INITIALIZED.store(true, Relaxed);
@@ -118,21 +170,47 @@ pub(in crate::mem) fn init_stage2() {
     let initial_heap_size = heap_sizes.initial();
     let total_heap_size = heap_sizes.total();
 
-    let new_start = HEAP_START + initial_heap_size as u64;
+    #[cfg(target_arch = "x86_64")]
+    {
+        let new_start = HEAP_START + initial_heap_size as u64;
 
-    let page_range = PageRangeInclusive::<Size2MiB> {
-        start: Page::containing_address(new_start),
-        end: Page::containing_address(new_start + (total_heap_size - initial_heap_size) as u64),
-    };
+        let page_range = PageRangeInclusive::<Size2MiB> {
+            start: Page::containing_address(new_start),
+            end: Page::containing_address(new_start + (total_heap_size - initial_heap_size) as u64),
+        };
 
-    let address_space = AddressSpace::kernel();
-    address_space
-        .map_range(
-            page_range,
-            PhysicalMemory::allocate_frames_non_contiguous(),
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-        )
-        .expect("should be able to map more heap");
+        let address_space = AddressSpace::kernel();
+        address_space
+            .map_range(
+                page_range,
+                PhysicalMemory::allocate_frames_non_contiguous(),
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+            )
+            .expect("should be able to map more heap");
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        let new_start = HEAP_START + initial_heap_size as u64;
+        let size_to_map = total_heap_size - initial_heap_size;
+        // On AArch64 we stick to 4KiB pages for now as we don't have block mapping iterator setup in address_space yet
+        let num_pages = size_to_map / 4096;
+        let frames = core::iter::from_fn(phys::allocate_frame::<Size4KiB>).take(num_pages);
+
+        let page_range = PageRangeInclusive::<Size4KiB> {
+            start: Page::containing_address(new_start),
+            end: Page::containing_address(new_start + (size_to_map as u64 - 1)),
+        };
+
+        let address_space = AddressSpace::kernel();
+        address_space
+            .map_range(
+                page_range,
+                frames,
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+            )
+            .expect("should be able to map more heap");
+    }
 
     // SAFETY: We are extending the global allocator with a new memory range
     // that has just been mapped. The range is contiguous with the previous heap.
@@ -162,7 +240,10 @@ impl Heap {
     }
 
     pub fn bottom() -> VirtAddr {
-        VirtAddr::new(ALLOCATOR.lock().bottom() as u64)
+        #[cfg(target_arch = "x86_64")]
+        return VirtAddr::new(ALLOCATOR.lock().bottom() as u64);
+        #[cfg(target_arch = "aarch64")]
+        return VirtAddr::new(ALLOCATOR.lock().bottom() as u64);
     }
 }
 

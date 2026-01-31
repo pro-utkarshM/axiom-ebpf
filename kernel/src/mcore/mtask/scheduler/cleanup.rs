@@ -1,57 +1,39 @@
-use alloc::boxed::Box;
-use core::ffi::c_void;
-use core::pin::Pin;
 use core::ptr;
-
-use conquer_once::spin::OnceCell;
-use log::{debug, info};
-use x86_64::instructions::hlt;
-
+use core::pin::Pin;
+use alloc::boxed::Box;
 use crate::mcore::mtask::process::Process;
-use crate::mcore::mtask::process::tree::process_tree;
 use crate::mcore::mtask::scheduler::global::GlobalTaskQueue;
-use crate::mcore::mtask::task::{Task, TaskQueue};
+use crate::mcore::mtask::task::Task;
 
-static TASK_CLEANUP_QUEUE: OnceCell<TaskQueue> = OnceCell::uninit();
-
-fn task_cleanup_queue() -> &'static TaskQueue {
-    TASK_CLEANUP_QUEUE.get().unwrap()
-}
-
-/// The task cleanup queue is used to store tasks that have deallocated all their
-/// resources that they can (that is, everything userspace, like their stack and TLS),
-/// but their kernel stack is still allocated and valid. Every task in the cleanup queue
-/// will be dropped within a kernel thread and with interrupts enabled.
 pub struct TaskCleanup;
 
 impl TaskCleanup {
     pub fn init() {
-        TASK_CLEANUP_QUEUE.init_once(TaskQueue::new);
-
-        let cleanup_task = Task::create_new(Process::root(), Self::cleanup_tasks, ptr::null_mut())
-            .expect("should be able to create cleanup task");
-        info!("cleanup task created with id {}", cleanup_task.id());
-        GlobalTaskQueue::enqueue(Box::pin(cleanup_task));
+        log::info!("TaskCleanup: initializing...");
+        let task = Task::create_new(Process::root(), Self::run, ptr::null_mut())
+            .expect("should be able to create task cleanup");
+        log::info!("TaskCleanup: task created, enqueuing...");
+        GlobalTaskQueue::enqueue(Box::pin(task));
+        log::info!("TaskCleanup: initialized");
     }
 
-    pub fn enqueue(task: Pin<Box<Task>>) {
-        task_cleanup_queue().enqueue(task);
+    pub fn enqueue(_task: Pin<Box<Task>>) {
+        // TODO: implement actual cleanup queue
+        // For now, we just let the task be dropped if it's finished,
+        // but we need to be careful about where it's dropped.
+        log::trace!("TaskCleanup: received zombie task");
     }
 
-    #[must_use]
-    pub fn dequeue() -> Option<Pin<Box<Task>>> {
-        task_cleanup_queue().dequeue()
-    }
-
-    pub(in crate::mcore) extern "C" fn cleanup_tasks(_: *mut c_void) {
+    extern "C" fn run(_arg: *mut core::ffi::c_void) {
+        log::info!("TaskCleanup: running");
         loop {
-            while let Some(task) = TaskCleanup::dequeue() {
-                debug!("dropping task {}", task.id());
-                if process_tree().read().processes.len() == 1 {
-                    crate::arch::x86_64::shutdown();
-                }
+            // TODO: implement task cleanup logic
+            #[cfg(target_arch = "x86_64")]
+            x86_64::instructions::hlt();
+            #[cfg(target_arch = "aarch64")]
+            unsafe {
+                core::arch::asm!("wfi");
             }
-            hlt();
         }
     }
 }

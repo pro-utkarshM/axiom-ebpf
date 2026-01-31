@@ -12,26 +12,41 @@
 .global exception_vector_base
 .balign 2048
 
+// Macro to handle invalid exceptions
+.macro invalid_exception kind, source
+    .balign 0x80
+    // Save caller-saved registers
+    stp     x0, x1, [sp, #-16]!
+    stp     x2, x3, [sp, #-16]!
+    stp     x4, x5, [sp, #-16]!
+    stp     x6, x7, [sp, #-16]!
+    stp     x8, x9, [sp, #-16]!
+    stp     x10, x11, [sp, #-16]!
+    stp     x12, x13, [sp, #-16]!
+    stp     x14, x15, [sp, #-16]!
+    stp     x16, x17, [sp, #-16]!
+    stp     x18, x29, [sp, #-16]!
+    stp     x30, xzr, [sp, #-16]!
+
+    // Call Rust handler with kind and source
+    mov     x0, #\kind
+    mov     x1, #\source
+    bl      handle_invalid_exception
+
+    // Should never return, but if it does, hang
+1:  wfi
+    b       1b
+.endm
+
 exception_vector_base:
 
 // =============================================================================
 // Current EL with SP0 (not typically used in kernel)
 // =============================================================================
-.balign 0x80
-curr_el_sp0_sync:
-    b       unhandled_exception
-
-.balign 0x80
-curr_el_sp0_irq:
-    b       unhandled_exception
-
-.balign 0x80
-curr_el_sp0_fiq:
-    b       unhandled_exception
-
-.balign 0x80
-curr_el_sp0_serror:
-    b       unhandled_exception
+invalid_exception 0, 0    // Synchronous
+invalid_exception 1, 0    // IRQ
+invalid_exception 2, 0    // FIQ
+invalid_exception 3, 0    // SError
 
 // =============================================================================
 // Current EL with SPx (kernel mode exceptions)
@@ -100,13 +115,8 @@ curr_el_spx_irq:
     ldp     x0, x1, [sp], #16
     eret
 
-.balign 0x80
-curr_el_spx_fiq:
-    b       unhandled_exception
-
-.balign 0x80
-curr_el_spx_serror:
-    b       unhandled_exception
+invalid_exception 2, 1    // FIQ
+invalid_exception 3, 1    // SError
 
 // =============================================================================
 // Lower EL using AArch64 (user space exceptions)
@@ -175,36 +185,13 @@ lower_el_aarch64_irq:
     ldp     x0, x1, [sp], #16
     eret
 
-.balign 0x80
-lower_el_aarch64_fiq:
-    b       unhandled_exception
-
-.balign 0x80
-lower_el_aarch64_serror:
-    b       unhandled_exception
+invalid_exception 2, 2    // FIQ
+invalid_exception 3, 2    // SError
 
 // =============================================================================
 // Lower EL using AArch32 (not used - we don't support 32-bit user space)
 // =============================================================================
-.balign 0x80
-lower_el_aarch32_sync:
-    b       unhandled_exception
-
-.balign 0x80
-lower_el_aarch32_irq:
-    b       unhandled_exception
-
-.balign 0x80
-lower_el_aarch32_fiq:
-    b       unhandled_exception
-
-.balign 0x80
-lower_el_aarch32_serror:
-    b       unhandled_exception
-
-// =============================================================================
-// Unhandled exception - infinite loop for debugging
-// =============================================================================
-unhandled_exception:
-    wfi
-    b       unhandled_exception
+invalid_exception 0, 3    // Synchronous
+invalid_exception 1, 3    // IRQ
+invalid_exception 2, 3    // FIQ
+invalid_exception 3, 3    // SError

@@ -6,7 +6,7 @@ extern crate alloc;
 
 use ::log::info;
 use conquer_once::spin::OnceCell;
-use spin::Mutex; // Added
+use spin::Mutex;
 
 #[cfg(target_arch = "x86_64")]
 use crate::driver::pci;
@@ -27,10 +27,10 @@ pub mod hpet;
 #[cfg(target_arch = "x86_64")]
 pub mod limine;
 mod log;
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 pub mod mcore;
 pub mod mem;
-mod serial; // Added
+mod serial;
 
 // Provide a dummy allocator for non-x86_64 and non-aarch64 targets
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
@@ -41,39 +41,33 @@ static ALLOCATOR: DummyAllocator = DummyAllocator;
 struct DummyAllocator;
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-// SAFETY: This is a dummy allocator that refuses all allocations.
-// It satisfies the GlobalAlloc contract by always returning null (failure)
-// and doing nothing on deallocation.
 unsafe impl core::alloc::GlobalAlloc for DummyAllocator {
-    // SAFETY: Always returns null, complying with the allocation failure contract.
     unsafe fn alloc(&self, _layout: core::alloc::Layout) -> *mut u8 {
         core::ptr::null_mut()
     }
-
-    // SAFETY: No-op deallocation is safe because we never allocated anything.
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: core::alloc::Layout) {}
 }
+
 #[cfg(target_arch = "x86_64")]
 pub mod sse;
 pub mod syscall;
 pub mod time;
 
 static BOOT_TIME_SECONDS: OnceCell<u64> = OnceCell::uninit();
-pub static BPF_MANAGER: OnceCell<Mutex<bpf::BpfManager>> = OnceCell::uninit(); // Added
+pub static BPF_MANAGER: OnceCell<Mutex<bpf::BpfManager>> = OnceCell::uninit();
 
-/// # Panics
-/// Panics if there was no boot time provided by limine.
 fn init_boot_time() {
     #[cfg(target_arch = "x86_64")]
     BOOT_TIME_SECONDS.init_once(|| BOOT_TIME.get_response().unwrap().timestamp().as_secs());
     #[cfg(not(target_arch = "x86_64"))]
-    BOOT_TIME_SECONDS.init_once(|| 0); // TODO: Get boot time from device tree
+    BOOT_TIME_SECONDS.init_once(|| 0);
 }
 
 pub fn init() {
     init_boot_time();
 
     log::init();
+    info!("Logging initialized");
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -83,40 +77,56 @@ pub fn init() {
         hpet::init();
     }
 
-    #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+    #[cfg(target_arch = "aarch64")]
     {
         use arch::traits::Architecture;
-        // Early init (exception vectors)
+        info!("Initializing architecture...");
         arch::aarch64::Aarch64::early_init();
-        // Full init (memory, interrupts, syscalls)
         arch::aarch64::Aarch64::init();
+        info!("Architecture initialized");
     }
 
-    // Initialize BPF
-    info!("Initializing BPF subsystem");
+    info!("Initializing BPF subsystem...");
     BPF_MANAGER.init_once(|| {
-        let mut manager = bpf::BpfManager::new();
+        let manager = bpf::BpfManager::new();
         Mutex::new(manager)
     });
+    info!("BPF subsystem initialized");
 
-    #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
-    {
-        // Already initialized above
-    }
-
+    info!("Initializing backtrace...");
     backtrace::init();
+    info!("Backtrace initialized");
 
+    info!("Initializing VFS...");
     file::init();
+    info!("VFS initialized");
+    
+    info!("Initializing IIO...");
     driver::iio::init();
+    info!("IIO initialized");
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    {
+        info!("Initializing multicore/scheduler...");
+        mcore::init();
+        info!("Multicore/scheduler initialized");
+    }
 
     #[cfg(target_arch = "x86_64")]
     {
-        mcore::init();
         pci::init();
     }
 
-    // Initialize simulated devices after scheduler is ready
+    #[cfg(all(target_arch = "aarch64", any(feature = "virt", feature = "rpi5")))]
+    {
+        info!("Initializing VirtIO MMIO...");
+        driver::virtio::mmio::init();
+        info!("VirtIO MMIO initialized");
+    }
+
+    info!("Initializing simulated devices...");
     driver::iio::init_simulated_device();
+    info!("Simulated devices initialized");
 
     info!("kernel initialized");
 }
@@ -130,7 +140,6 @@ pub trait U64Ext {
 impl U64Ext for u64 {
     #[allow(clippy::cast_possible_truncation)]
     fn into_usize(self) -> usize {
-        // SAFETY: we know that we are on 64-bit, so this is correct
         unsafe { usize::try_from(self).unwrap_unchecked() }
     }
 }

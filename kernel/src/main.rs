@@ -2,33 +2,33 @@
 #![no_main]
 extern crate alloc;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use alloc::{boxed::Box, sync::Arc};
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use core::error::Error;
 use core::panic::PanicInfo;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use ext2::Ext2Fs;
-#[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+#[cfg(target_arch = "aarch64")]
 use kernel::arch::traits::Architecture;
 #[cfg(target_arch = "x86_64")]
 use kernel::limine::BASE_REVISION;
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use kernel::mcore;
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use kernel::mcore::mtask::process::Process;
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use kernel::{
     driver::{KernelDeviceId, block::BlockDevices},
     file::{ext2::VirtualExt2Fs, vfs},
 };
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use kernel_device::block::{BlockBuf, BlockDevice};
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use kernel_vfs::path::{AbsolutePath, ROOT};
 use log::{error, info};
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use spin::RwLock;
 #[cfg(target_arch = "x86_64")]
 use x86_64::instructions::hlt;
@@ -40,7 +40,7 @@ fn hlt() {
     unsafe {
         riscv::asm::wfi();
     }
-    #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+    #[cfg(target_arch = "aarch64")]
     // SAFETY: Executing wfi instruction is safe in kernel mode.
     unsafe {
         core::arch::asm!("wfi");
@@ -84,36 +84,50 @@ unsafe extern "C" fn main() -> ! {
     mcore::turn_idle()
 }
 
-#[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+#[cfg(target_arch = "aarch64")]
 // SAFETY: Export "kernel_main" for the bootloader.
 #[unsafe(export_name = "kernel_main")]
 // SAFETY: Kernel entry point.
 unsafe extern "C" fn main() -> ! {
     // SAFETY: We are initializing the kernel subsystems in the correct order.
-    unsafe {
-        kernel::init();
+    kernel::init();
 
-        info!("ARM64 kernel started");
+    info!("ARM64 kernel started");
 
-        // Initialize per-CPU context for CPU 0
-        kernel::arch::aarch64::cpu::init_current_cpu(0);
+    // Initialize per-CPU context for CPU 0
+    kernel::arch::aarch64::cpu::init_current_cpu(0);
 
-        // Get scheduler and initialize with current stack as idle task
-        let ctx = kernel::arch::aarch64::cpu::current();
-        let sched = ctx.scheduler_mut();
-        let idle_sp = kernel::arch::aarch64::context::current_sp();
-        sched.init(idle_sp);
+    // Enable interrupts
+    kernel::arch::aarch64::Aarch64::enable_interrupts();
 
-        info!("Scheduler initialized, entering idle loop");
-
-        // Enable interrupts and enter idle loop
-        kernel::arch::aarch64::Aarch64::enable_interrupts();
-
-        loop {
-            // Wait for interrupt - timer will fire and potentially reschedule
-            hlt();
-        }
+    {
+        info!("mounting root filesystem");
+        // For now we assume the VirtIO block device is device 0.
+        // In a real system we might need to search for the correct device.
+        // On QEMU virt, the first virtio-blk device usually ends up as device 0 if it's the only one.
+        let root_block_device =
+            BlockDevices::by_id(0).expect("should have block device with id 0");
+        let root_block_device = ArcLockedBlockDevice(root_block_device);
+        vfs()
+            .write()
+            .mount(
+                ROOT,
+                VirtualExt2Fs::from(
+                    Ext2Fs::try_new(root_block_device).expect("should be able to create ext2fs"),
+                ),
+            )
+            .expect("should be able to mount ext2fs at /");
     }
+
+    {
+        info!("starting init process...");
+        let init_path = AbsolutePath::try_new("/bin/init").unwrap();
+        let _ = vfs().read().open(init_path).expect("should have /bin/init");
+        let proc = Process::create_from_executable(Process::root(), init_path).unwrap();
+        info!("started process pid={}", proc.pid());
+    }
+
+    mcore::turn_idle()
 }
 
 #[cfg(target_arch = "riscv64")]
@@ -131,12 +145,12 @@ unsafe extern "C" fn main() -> ! {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 struct ArcLockedBlockDevice<const N: usize>(
     Arc<RwLock<dyn BlockDevice<KernelDeviceId, N> + Send + Sync>>,
 );
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 impl<const N: usize> filesystem::BlockDevice for ArcLockedBlockDevice<N> {
     type Error = Box<dyn Error>;
 

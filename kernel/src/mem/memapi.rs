@@ -7,8 +7,7 @@ use core::slice::{from_raw_parts, from_raw_parts_mut};
 
 use kernel_memapi::{Allocation, Guarded, Location, MemoryApi, UserAccessible, WritableAllocation};
 use kernel_virtual_memory::Segment;
-use x86_64::VirtAddr;
-use x86_64::structures::paging::{PageSize, PageTableFlags, Size4KiB};
+use crate::arch::types::{VirtAddr, PageSize, Size4KiB, PageTableFlags};
 
 use crate::mcore::mtask::process::Process;
 use crate::mem::phys::PhysicalMemory;
@@ -52,6 +51,7 @@ impl MemoryApi for LowerHalfMemoryApi {
                 (None, segment)
             }
             Location::Fixed(v) => {
+                let v = VirtAddr::new(v);
                 let aligned_start_addr = v.align_down(Size4KiB::SIZE)
                     - match guarded {
                         Guarded::Yes => Size4KiB::SIZE,
@@ -62,8 +62,10 @@ impl MemoryApi for LowerHalfMemoryApi {
                         Guarded::Yes => Size4KiB::SIZE,
                         Guarded::No => 0,
                     };
-                let segment =
-                    Segment::new(aligned_start_addr, aligned_end_addr - aligned_start_addr);
+                let segment = Segment::new(
+                    kernel_virtual_memory::VirtAddr::new(aligned_start_addr.as_u64()),
+                    aligned_end_addr.as_u64() - aligned_start_addr.as_u64(),
+                );
                 let vmm = self.process.vmm();
                 let segment = vmm.mark_as_reserved(segment).ok()?;
                 (Some(v), segment)

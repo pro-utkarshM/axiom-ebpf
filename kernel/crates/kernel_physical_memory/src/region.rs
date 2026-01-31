@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use x86_64::structures::paging::{PageSize, Size4KiB};
+use crate::{PageSize, Size4KiB};
 
 use crate::FrameState;
 
@@ -42,7 +42,7 @@ impl MemoryRegion {
     }
 
     /// Returns a reference to the frame states.
-    pub(crate) fn frames(&self) -> &[FrameState] {
+    pub fn frames(&self) -> &[FrameState] {
         &self.frames
     }
 
@@ -78,7 +78,7 @@ impl MemoryRegion {
 
 #[cfg(test)]
 mod tests {
-    use x86_64::structures::paging::PageSize;
+    use crate::PageSize;
 
     use super::*;
 

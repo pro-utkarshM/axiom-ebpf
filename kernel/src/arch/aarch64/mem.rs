@@ -28,16 +28,19 @@ pub const L2_BLOCK_SIZE: usize = 1 << L2_SHIFT; // 2MB
 /// Kernel virtual address space layout (upper half: 0xFFFF_0000_0000_0000+)
 pub mod kernel {
     /// Start of kernel address space (upper half)
+    /// In ARM64 with 48-bit VA, this is the base of the TTBR1 range.
     pub const BASE: usize = 0xFFFF_0000_0000_0000;
 
-    /// Physical memory direct map region
-    /// Maps all physical memory starting here
+    /// Physical memory direct map region (HHDM)
+    /// Maps all physical memory starting here.
+    /// Index 256 in L0 table.
     pub const PHYS_MAP_BASE: usize = 0xFFFF_8000_0000_0000;
     pub const PHYS_MAP_SIZE: usize = 0x0000_4000_0000_0000; // 64TB max
 
-    /// Kernel image base (where kernel is loaded)
-    /// Identity mapped from physical 0x80000
-    pub const IMAGE_BASE: usize = 0xFFFF_FFFF_8008_0000;
+    /// Kernel image base (where kernel is loaded in the higher half)
+    /// On QEMU virt, kernel is at physical 0x40080000.
+    /// In the HHDM, this is PHYS_MAP_BASE + 0x40080000.
+    pub const IMAGE_BASE: usize = 0xFFFF_8000_4008_0000;
 
     /// Kernel heap region
     pub const HEAP_BASE: usize = 0xFFFF_C000_0000_0000;
@@ -67,23 +70,6 @@ pub mod user {
     pub const HEAP_BASE: usize = 0x0000_0000_1000_0000;
 }
 
-/// Raspberry Pi 5 specific physical addresses
-#[cfg(feature = "rpi5")]
-pub mod rpi5 {
-    /// DRAM starts at 0
-    pub const DRAM_BASE: usize = 0x0;
-
-    /// Kernel is loaded at 0x80000 by the firmware
-    pub const KERNEL_PHYS_BASE: usize = 0x8_0000;
-
-    /// RP1 (southbridge) base through PCIe
-    pub const RP1_BASE: usize = 0x1F00_0000_0000;
-
-    /// GIC (interrupt controller) on BCM2712
-    pub const GIC_DIST_BASE: usize = 0xFF84_1000;
-    pub const GIC_CPU_BASE: usize = 0xFF84_2000;
-}
-
 /// Memory attribute indices for MAIR_EL1
 pub mod mair {
     /// Device-nGnRnE memory (strongly ordered)
@@ -96,9 +82,9 @@ pub mod mair {
     pub const NORMAL_NC: u8 = 3;
 
     /// MAIR_EL1 value encoding all memory types
-    pub const MAIR_VALUE: u64 = 0x00_44_FF_00;
+    pub const MAIR_VALUE: u64 = 0x00_44_FF_04_00; 
     // Index 0: Device-nGnRnE (0x00)
-    // Index 1: Device-nGnRE (0x04) - not used, placeholder
+    // Index 1: Device-nGnRE (0x04)
     // Index 2: Normal WB (0xFF = outer WB, inner WB)
     // Index 3: Normal NC (0x44 = outer NC, inner NC)
 }
@@ -168,12 +154,12 @@ pub const fn page_align_up(addr: usize) -> usize {
 
 /// Convert physical address to kernel virtual address (via direct map)
 pub const fn phys_to_virt(phys: usize) -> usize {
-    kernel::PHYS_MAP_BASE + phys
+    kernel::PHYS_MAP_BASE.wrapping_add(phys)
 }
 
 /// Convert kernel virtual address to physical address (via direct map)
 pub const fn virt_to_phys(virt: usize) -> usize {
-    virt - kernel::PHYS_MAP_BASE
+    virt.wrapping_sub(kernel::PHYS_MAP_BASE)
 }
 
 /// Check if address is in kernel space

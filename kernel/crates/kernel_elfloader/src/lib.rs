@@ -13,8 +13,6 @@ use itertools::Itertools;
 use kernel_memapi::{Guarded, Location, MemoryApi, UserAccessible};
 use log::trace;
 use thiserror::Error;
-use x86_64::VirtAddr;
-use x86_64::addr::VirtAddrNotValid;
 
 pub struct ElfLoader<M>
 where
@@ -35,12 +33,6 @@ pub enum LoadElfError {
     InvalidVirtualAddress(usize),
     #[error("more than one TLS header found")]
     TooManyTlsHeaders,
-}
-
-impl From<VirtAddrNotValid> for LoadElfError {
-    fn from(value: VirtAddrNotValid) -> Self {
-        Self::InvalidVirtualAddress(usize::try_from(value.0).unwrap())
-    }
 }
 
 impl<M> ElfLoader<M>
@@ -88,7 +80,7 @@ where
             trace!("load header {hdr:x?}");
             let pdata = image.elf_file.program_data(hdr);
 
-            let location = Location::Fixed(VirtAddr::try_new(hdr.vaddr as u64)?);
+            let location = Location::Fixed(hdr.vaddr as u64);
 
             let layout = Layout::from_size_align(hdr.memsz, hdr.align)
                 .map_err(|_| LoadElfError::InvalidSizeOrAlign)?;

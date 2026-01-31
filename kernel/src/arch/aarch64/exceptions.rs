@@ -67,6 +67,8 @@ pub extern "C" fn handle_sync_exception() {
     let ec = (esr >> 26) & 0x3F; // Exception class
     let iss = esr & 0x1FFFFFF; // Instruction specific syndrome
 
+    log::trace!("Sync exception: EC={:#x}, ISS={:#x}, ELR={:#x}, FAR={:#x}", ec, iss, elr, far);
+
     match ec {
         0x15 => {
             // SVC instruction execution in AArch64 state
@@ -259,6 +261,25 @@ pub extern "C" fn handle_fiq() {
 #[unsafe(no_mangle)]
 pub extern "C" fn handle_serror() {
     panic!("SError received");
+}
+
+/// Invalid exception handler (called for unhandled vectors)
+#[unsafe(no_mangle)]
+pub extern "C" fn handle_invalid_exception(kind: u64, source: u64) {
+    let esr: u64;
+    let elr: u64;
+    let far: u64;
+
+    unsafe {
+        asm!("mrs {}, esr_el1", out(reg) esr);
+        asm!("mrs {}, elr_el1", out(reg) elr);
+        asm!("mrs {}, far_el1", out(reg) far);
+    }
+
+    panic!(
+        "Invalid exception: kind={}, source={}, ESR={:#x}, ELR={:#x}, FAR={:#x}",
+        kind, source, esr, elr, far
+    );
 }
 
 /// Exception context saved on exception entry

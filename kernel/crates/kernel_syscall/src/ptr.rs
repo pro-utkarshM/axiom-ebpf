@@ -2,7 +2,7 @@ use core::ptr::{with_exposed_provenance, with_exposed_provenance_mut};
 
 use kernel_abi::{EINVAL, Errno};
 use thiserror::Error;
-use x86_64::VirtAddr;
+use kernel_virtual_memory::VirtAddr;
 
 #[derive(Copy, Clone)]
 pub struct UserspacePtr<T> {

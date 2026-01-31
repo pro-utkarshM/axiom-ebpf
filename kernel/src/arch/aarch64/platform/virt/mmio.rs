@@ -8,6 +8,13 @@
 pub const GICD_BASE: usize = 0x0800_0000;
 pub const GICC_BASE: usize = 0x0801_0000;
 
+// VirtIO MMIO
+// QEMU virt maps 32 virtio-mmio devices starting at 0x0a00_0000
+// Each device is 0x200 bytes apart
+pub const VIRTIO_MMIO_BASE: usize = 0x0a00_0000;
+pub const VIRTIO_MMIO_SIZE: usize = 0x200;
+pub const VIRTIO_MAX_DEVICES: usize = 32;
+
 use core::ptr::{read_volatile, write_volatile};
 
 /// Memory-mapped I/O register wrapper

@@ -62,7 +62,7 @@ pub mod aarch64 {
             let page_addr = virt_addr + i * PAGE_SIZE;
 
             // Allocate physical frame
-            let frame = match phys::allocate_frame() {
+            let frame = match phys::allocate_frame::<crate::arch::types::Size4KiB>() {
                 Some(f) => f,
                 None => {
                     log::error!("BPF JIT OOM: physical allocation failed");
@@ -72,7 +72,7 @@ pub mod aarch64 {
             };
 
             // Map the page
-            if let Err(e) = walker.map_page(page_addr, frame.addr(), flags) {
+            if let Err(e) = walker.map_page(page_addr, frame.addr() as usize, flags) {
                 log::error!("BPF JIT Map failed: {}", e);
                 // TODO: Rollback
                 return core::ptr::null_mut();

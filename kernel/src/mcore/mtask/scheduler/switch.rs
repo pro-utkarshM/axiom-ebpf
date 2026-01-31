@@ -1,5 +1,6 @@
 use core::arch::naked_asm;
 
+#[cfg(target_arch = "x86_64")]
 macro_rules! push_context {
     () => {
         concat!(
@@ -26,6 +27,7 @@ macro_rules! push_context {
     };
 }
 
+#[cfg(target_arch = "x86_64")]
 macro_rules! pop_context {
     () => {
         concat!(
@@ -52,6 +54,7 @@ macro_rules! pop_context {
     };
 }
 
+#[cfg(target_arch = "x86_64")]
 macro_rules! set_task_switched {
     () => {
         concat!(
@@ -97,6 +100,7 @@ pub unsafe extern "C" fn switch_impl(
     // $rsi -> new_stack
     // $rdx -> new_cr3_value
 
+    #[cfg(target_arch = "x86_64")]
     naked_asm!(
         push_context!(),
         "mov [rdi], rsp", // write the stack pointer rsp at *_old_stack
@@ -105,5 +109,18 @@ pub unsafe extern "C" fn switch_impl(
         "mov cr3, rdx", // write _new_cr3_value into cr3
         pop_context!(),
         "ret"
-    )
+    );
+
+    #[cfg(target_arch = "aarch64")]
+    naked_asm!(
+        // On AArch64:
+        // x0 = _old_stack
+        // x1 = _new_stack (pointer value)
+        // x2 = _new_cr3_value (ttbr0)
+        "b {switch_impl}",
+        switch_impl = sym crate::arch::aarch64::context::switch_impl
+    );
+
+    #[cfg(target_arch = "riscv64")]
+    naked_asm!("unimp");
 }

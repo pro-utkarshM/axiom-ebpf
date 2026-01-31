@@ -148,25 +148,23 @@ pub fn init_task_stack(stack_top: usize, entry_point: usize, arg: usize) -> usiz
 /// Task entry trampoline
 ///
 /// This is the first code executed by a new task after context switch.
-/// It moves the argument from x19 to x0 and jumps to the actual entry point.
-///
-/// Note: The actual entry point is in x30 (LR) when we get here, but we
-/// already returned to it. So we need a different approach - we'll use
-/// a wrapper that's set as the entry point.
+/// It moves the argument from x19 to x0, sets up the return address (LR)
+/// to the exit function (in x21), and jumps to the actual entry point (in x20).
 ///
 /// # Safety
 ///
-/// This function must only be jumped to from a properly initialized SwitchFrame
-/// where x19 contains the task argument and x20 contains the entry point address.
+/// This function must only be jumped to from a properly initialized SwitchFrame.
 ///
 /// `naked` attribute is used because this is a trampoline that doesn't follow
-/// standard C calling convention (reads from x19/x20 set up by init_task_stack).
+/// standard C calling convention.
 #[unsafe(naked)]
 pub unsafe extern "C" fn task_entry_trampoline() {
     core::arch::naked_asm!(
         // x19 contains the argument
         // x20 contains the actual entry point
+        // x21 contains the exit function
         "mov x0, x19",
+        "mov x30, x21", // Set LR to exit function
         "br x20",
     );
 }
@@ -174,7 +172,12 @@ pub unsafe extern "C" fn task_entry_trampoline() {
 /// Initialize a stack for a new task with trampoline
 ///
 /// Like init_task_stack but uses a trampoline to properly pass the argument.
-pub fn init_task_stack_with_arg(stack_top: usize, entry_point: usize, arg: usize) -> usize {
+pub fn init_task_stack_with_arg(
+    stack_top: usize,
+    entry_point: usize,
+    arg: usize,
+    exit_point: usize,
+) -> usize {
     let stack_top = stack_top & !0xF;
     let frame_ptr = (stack_top - SwitchFrame::SIZE) as *mut SwitchFrame;
 
@@ -188,9 +191,10 @@ pub fn init_task_stack_with_arg(stack_top: usize, entry_point: usize, arg: usize
         frame.x19 = arg as u64;
         // x20 = actual entry point (trampoline will branch to this)
         frame.x20 = entry_point as u64;
+        // x21 = exit function (trampoline will set LR to this)
+        frame.x21 = exit_point as u64;
 
         // Zero other registers
-        frame.x21 = 0;
         frame.x22 = 0;
         frame.x23 = 0;
         frame.x24 = 0;
@@ -205,6 +209,30 @@ pub fn init_task_stack_with_arg(stack_top: usize, entry_point: usize, arg: usize
     }
 
     frame_ptr as usize
+}
+
+/// Enter userspace
+///
+/// Restores state to enter EL0 (userspace).
+///
+/// # Safety
+/// Caller must ensure `entry_point` and `stack_pointer` are valid for userspace.
+pub unsafe fn enter_userspace(entry_point: usize, stack_pointer: usize) -> ! {
+    // SPSR_EL1 for EL0 entry:
+    // M[3:0] = 0000 (EL0t)
+    // DAIF = 0000 (Unmasked) -> Interrupts enabled
+    let spsr: u64 = 0;
+
+    core::arch::asm!(
+        "msr sp_el0, {sp}",
+        "msr elr_el1, {entry}",
+        "msr spsr_el1, {spsr}",
+        "eret",
+        sp = in(reg) stack_pointer,
+        entry = in(reg) entry_point,
+        spsr = in(reg) spsr,
+        options(noreturn)
+    );
 }
 
 /// Get the current stack pointer

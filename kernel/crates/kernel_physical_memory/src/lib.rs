@@ -4,9 +4,17 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use x86_64::PhysAddr;
-use x86_64::structures::paging::frame::PhysFrameRangeInclusive;
-use x86_64::structures::paging::{PageSize, PhysFrame, Size1GiB, Size2MiB, Size4KiB};
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::PhysAddr;
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::structures::paging::frame::PhysFrameRangeInclusive;
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::structures::paging::{PageSize, PhysFrame, Size1GiB, Size2MiB, Size4KiB};
+
+#[cfg(not(target_arch = "x86_64"))]
+mod types;
+#[cfg(not(target_arch = "x86_64"))]
+pub use crate::types::*;
 
 mod region;
 pub use region::MemoryRegion;

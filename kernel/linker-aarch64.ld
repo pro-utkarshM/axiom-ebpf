@@ -22,6 +22,7 @@ SECTIONS
 
     /* Boot code must come first */
     .text : {
+        __text_start = .;
         KEEP(*(.text.boot))
         *(.text .text.*)
     } :text

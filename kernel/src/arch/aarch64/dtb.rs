@@ -17,6 +17,8 @@ pub struct DeviceTreeInfo {
     pub memory_regions: [Option<MemoryRegion>; 8],
     pub memory_region_count: usize,
     pub total_memory: usize,
+    pub dtb_start: usize,
+    pub dtb_size: usize,
 }
 
 impl DeviceTreeInfo {
@@ -26,6 +28,8 @@ impl DeviceTreeInfo {
             memory_regions: [None; 8],
             memory_region_count: 0,
             total_memory: 0,
+            dtb_start: 0,
+            dtb_size: 0,
         }
     }
 
@@ -54,6 +58,8 @@ pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> {
             });
             DTB_INFO.memory_region_count = 1;
             DTB_INFO.total_memory = 0x4000_0000;
+            DTB_INFO.dtb_start = dtb_addr;
+            DTB_INFO.dtb_size = 0x10000; // Assume 64KB if parsing failed
         }
     }
     res
@@ -115,11 +121,15 @@ unsafe fn parse_internal(dtb_addr: usize) -> Result<(), &'static str> {
 
         DTB_INFO.memory_region_count = region_count;
         DTB_INFO.total_memory = total_memory;
+        DTB_INFO.dtb_start = dtb_addr;
+        DTB_INFO.dtb_size = total_size;
 
         log::info!(
-            "DTB: parsed {} memory regions, total {} MB",
+            "DTB: parsed {} memory regions, total {} MB, DTB at {:#x} ({} bytes)",
             region_count,
-            total_memory / (1024 * 1024)
+            total_memory / (1024 * 1024),
+            dtb_addr,
+            total_size
         );
 
         Ok(())

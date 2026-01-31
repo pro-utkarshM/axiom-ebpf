@@ -8,10 +8,16 @@
 //! The Raspberry Pi 5 uses a GIC (likely GICv2) for interrupt management.
 
 #[cfg(feature = "rpi5")]
-use super::platform::rpi5::memory_map::{GICC_BASE, GICD_BASE};
+use super::platform::rpi5::memory_map as platform_map;
 
-#[cfg(feature = "virt")]
-use super::platform::virt::mmio::{GICC_BASE, GICD_BASE};
+#[cfg(all(feature = "virt", not(feature = "rpi5")))]
+use super::platform::virt::mmio as platform_map;
+
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
+mod platform_map {
+    pub const GICC_BASE: usize = 0;
+    pub const GICD_BASE: usize = 0;
+}
 
 /// GIC Distributor register offsets
 mod gicd {
@@ -72,11 +78,11 @@ pub mod irq {
 
 /// GICD base address (set at runtime for flexibility)
 #[cfg(any(feature = "rpi5", feature = "virt"))]
-static GICD: usize = GICD_BASE;
+static GICD: usize = platform_map::GICD_BASE;
 
 /// GICC base address
 #[cfg(any(feature = "rpi5", feature = "virt"))]
-static GICC: usize = GICC_BASE;
+static GICC: usize = platform_map::GICC_BASE;
 
 /// Initialize the GIC
 ///
