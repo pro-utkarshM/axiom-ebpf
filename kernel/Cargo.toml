@@ -58,6 +58,7 @@ x86_64_arch = []
 riscv64_arch = ["riscv"]
 aarch64_arch = ["aarch64-cpu", "fdt"]
 rpi5 = ["aarch64_arch"]
+virt = ["aarch64_arch"]
 
 # Physical reality profiles for eBPF subsystem
 # Use --features cloud-profile or --features embedded-profile

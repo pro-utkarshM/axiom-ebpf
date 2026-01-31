@@ -8,3 +8,9 @@ pub mod rpi5;
 
 #[cfg(feature = "rpi5")]
 pub use rpi5::*;
+
+#[cfg(feature = "virt")]
+pub mod virt;
+
+#[cfg(feature = "virt")]
+pub use virt::*;

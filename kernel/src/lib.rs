@@ -32,15 +32,15 @@ pub mod mcore;
 pub mod mem;
 mod serial; // Added
 
-// Provide a dummy allocator for non-x86_64 targets
-#[cfg(not(target_arch = "x86_64"))]
+// Provide a dummy allocator for non-x86_64 and non-aarch64 targets
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 #[global_allocator]
 static ALLOCATOR: DummyAllocator = DummyAllocator;
 
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 struct DummyAllocator;
 
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 // SAFETY: This is a dummy allocator that refuses all allocations.
 // It satisfies the GlobalAlloc contract by always returning null (failure)
 // and doing nothing on deallocation.
@@ -81,6 +81,15 @@ pub fn init() {
         acpi::init();
         apic::init();
         hpet::init();
+    }
+
+    #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+    {
+        use arch::traits::Architecture;
+        // Early init (exception vectors)
+        arch::aarch64::Aarch64::early_init();
+        // Full init (memory, interrupts, syscalls)
+        arch::aarch64::Aarch64::init();
     }
 
     // Initialize BPF
@@ -125,11 +134,7 @@ pub fn init() {
 
     #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
     {
-        use arch::traits::Architecture;
-        // Early init (exception vectors)
-        arch::aarch64::Aarch64::early_init();
-        // Full init (memory, interrupts, syscalls)
-        arch::aarch64::Aarch64::init();
+        // Already initialized above
     }
 
     backtrace::init();

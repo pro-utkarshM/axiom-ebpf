@@ -3,8 +3,18 @@ fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
 
     // Set linker script
-    println!("cargo:rustc-link-arg=-T{dir}/linker-{arch}.ld");
-    println!("cargo:rerun-if-changed={dir}/linker-{arch}.ld");
+    let linker_script = if std::env::var("CARGO_FEATURE_VIRT").is_ok() && arch == "aarch64" {
+        "linker-virt.ld"
+    } else {
+        match arch.as_str() {
+            "aarch64" => "linker-aarch64.ld",
+            "riscv64" => "linker-riscv64.ld",
+            _ => "linker-x86_64.ld", // Fallback, though x86 uses Limine
+        }
+    };
+
+    println!("cargo:rustc-link-arg=-T{dir}/{linker_script}");
+    println!("cargo:rerun-if-changed={dir}/{linker_script}");
 
     // Compile architecture-specific assembly files
     match arch.as_str() {

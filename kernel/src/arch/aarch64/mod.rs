@@ -4,6 +4,7 @@ pub mod cpu;
 pub mod dtb;
 pub mod exceptions;
 pub mod gic;
+pub mod heap;
 pub mod interrupts;
 pub mod mem;
 pub mod mm;

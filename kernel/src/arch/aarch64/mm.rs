@@ -5,7 +5,7 @@
 use core::ptr;
 
 use super::dtb;
-use super::mem::{self, pte_flags};
+use super::mem::{self, pte_flags, PAGE_SIZE};
 use super::paging::{self, PageTable};
 use super::phys::{self};
 
@@ -30,6 +30,7 @@ static mut BOOT_TABLES: BootPageTables = BootPageTables {
 /// 2. Sets up kernel page tables with identity + higher-half mappings
 /// 3. Configures MAIR and TCR
 /// 4. Enables the MMU with new page tables
+/// 5. Maps and initializes the kernel heap
 pub fn init() {
     log::info!("Initializing ARM64 memory management...");
 
@@ -47,7 +48,30 @@ pub fn init() {
     // The total_memory value comes from the DTB which was validated earlier.
     unsafe {
         setup_kernel_page_tables(total_memory);
+        
+        // Map kernel heap
+        map_heap();
+
+        // Configure MAIR (memory attributes)
+        paging::configure_mair();
+
+        // Configure TCR (translation control)
+        paging::configure_tcr();
+
+        // Set TTBR0 (user/identity mapping) and TTBR1 (kernel mapping)
+        let l0_phys = &raw const BOOT_TABLES.l0 as usize;
+        paging::set_ttbr0(l0_phys);
+        paging::set_ttbr1(l0_phys);
+
+        // Enable the MMU
+        paging::enable_mmu();
+
+        // Initialize heap allocator
+        init_heap();
     }
+
+    // Initialize stage 2 allocator (bitmap)
+    init_stage2();
 
     log::info!("ARM64 memory management initialized");
 }
@@ -72,15 +96,14 @@ unsafe fn setup_kernel_page_tables(total_memory: usize) {
     boot_tables.l1_high.zero();
 
     // Get physical addresses of tables
-    let l0_phys = &raw const boot_tables.l0 as usize;
     let l1_low_phys = &raw const boot_tables.l1_low as usize;
     let l1_high_phys = &raw const boot_tables.l1_high as usize;
 
     // L0[0] -> L1_low (identity mapping for first 512GB)
     *boot_tables.l0.entry_mut(0) = paging::PageTableEntry::table(l1_low_phys);
 
-    // L0[511] -> L1_high (kernel higher-half mapping, 0xFFFF_8000_0000_0000+)
-    // Index 511 covers 0xFFFF_8000_0000_0000 - 0xFFFF_FFFF_FFFF_FFFF
+    // L0[256] -> L1_high (kernel higher-half mapping, 0xFFFF_8000_0000_0000+)
+    // Index 256 covers 0xFFFF_8000_0000_0000 - 0xFFFF_807F_FFFF_FFFF
     *boot_tables.l0.entry_mut(256) = paging::PageTableEntry::table(l1_high_phys);
 
     // Set up identity mapping using 1GB blocks for simplicity
@@ -105,30 +128,47 @@ unsafe fn setup_kernel_page_tables(total_memory: usize) {
         }
     }
 
-    // Configure MAIR (memory attributes)
-    // SAFETY: We are setting up the CPU memory attributes for the first time.
-    unsafe {
-        paging::configure_mair();
-    }
-
-    // Configure TCR (translation control)
-    // SAFETY: We are setting up the Translation Control Register.
-    unsafe {
-        paging::configure_tcr();
-    }
-
-    // Set TTBR0 (user/identity mapping) and TTBR1 (kernel mapping)
-    // SAFETY: The page tables have been initialized and their physical addresses are valid.
-    unsafe {
-        paging::set_ttbr0(l0_phys);
-        paging::set_ttbr1(l0_phys);
-    }
-
     log::info!(
-        "Page tables configured: L0={:#x}, mapped {}GB",
-        l0_phys,
+        "Bootstrap page tables configured, mapped {}GB",
         gb_to_map
     );
+}
+
+/// Map the kernel heap region
+///
+/// # Safety
+///
+/// Must be called during early boot while identity mapping is active.
+unsafe fn map_heap() {
+    #[allow(clippy::deref_addrof)]
+    let l0_ptr = &raw mut BOOT_TABLES.l0;
+    let mut walker = unsafe { paging::PageTableWalker::new(l0_ptr) };
+
+    // Initial heap size: 32MB
+    let heap_size = 32 * 1024 * 1024;
+    let pages = heap_size / PAGE_SIZE;
+
+    for i in 0..pages {
+        let frame = phys::allocate_frame().expect("Failed to allocate physical frame for heap");
+        let virt = mem::kernel::HEAP_BASE + i * PAGE_SIZE;
+        
+        walker.map_page(virt, frame.addr(), pte_flags::KERNEL_RW)
+            .expect("Failed to map heap page");
+    }
+
+    log::info!("Mapped {}MB heap at {:#x}", heap_size / (1024 * 1024), mem::kernel::HEAP_BASE);
+}
+
+/// Initialize the heap allocator
+///
+/// # Safety
+///
+/// Must be called after `map_heap` and `paging::enable_mmu`.
+unsafe fn init_heap() {
+    let heap_size = 32 * 1024 * 1024;
+    unsafe {
+        super::heap::init(mem::kernel::HEAP_BASE, heap_size);
+    }
 }
 
 /// Get the kernel page table root physical address

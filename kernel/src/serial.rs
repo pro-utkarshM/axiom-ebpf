@@ -54,6 +54,25 @@ mod aarch64_impl {
                 Aarch64::enable_interrupts();
             }
         }
+
+        #[cfg(feature = "virt")]
+        {
+            use crate::arch::aarch64::Aarch64;
+            use crate::arch::aarch64::platform::virt::SERIAL_CONSOLE;
+            use crate::arch::traits::Architecture;
+
+            // Disable interrupts while printing to avoid deadlock
+            let were_enabled = Aarch64::are_interrupts_enabled();
+            if were_enabled {
+                Aarch64::disable_interrupts();
+            }
+
+            let _ = SERIAL_CONSOLE.lock().write_fmt(args);
+
+            if were_enabled {
+                Aarch64::enable_interrupts();
+            }
+        }
     }
 }
 

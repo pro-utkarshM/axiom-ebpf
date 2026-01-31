@@ -44,6 +44,22 @@ static mut DTB_INFO: DeviceTreeInfo = DeviceTreeInfo::empty();
 /// # Safety
 /// The dtb_addr must point to a valid device tree blob in memory
 pub unsafe fn parse(dtb_addr: usize) -> Result<(), &'static str> {
+    let res = unsafe { parse_internal(dtb_addr) };
+    if res.is_err() {
+        log::warn!("DTB parsing failed: {:?}. Using fallback for 'virt' machine.", res.err());
+        unsafe {
+            DTB_INFO.memory_regions[0] = Some(MemoryRegion {
+                base: 0x4000_0000,
+                size: 0x4000_0000, // 1GB
+            });
+            DTB_INFO.memory_region_count = 1;
+            DTB_INFO.total_memory = 0x4000_0000;
+        }
+    }
+    res
+}
+
+unsafe fn parse_internal(dtb_addr: usize) -> Result<(), &'static str> {
     // SAFETY: We are accessing raw memory at dtb_addr. The caller guarantees this is valid.
     // We also modify the static DTB_INFO, which is safe because we are single-threaded
     // during early boot.

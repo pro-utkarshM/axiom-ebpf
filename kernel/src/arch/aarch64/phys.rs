@@ -11,6 +11,19 @@ use spin::Mutex;
 use super::dtb;
 use super::mem::{PAGE_SHIFT, PAGE_SIZE};
 
+extern "C" {
+    static __text_start: u8;
+    static __bss_end: u8;
+}
+
+/// Get the physical memory range occupied by the kernel
+fn kernel_range() -> (usize, usize) {
+    (
+        (&raw const __text_start) as usize,
+        ((&raw const __bss_end) as usize + PAGE_SIZE - 1) & !(PAGE_SIZE - 1),
+    )
+}
+
 /// Physical frame number
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhysFrame(usize);
@@ -63,6 +76,7 @@ impl BumpAllocator {
     /// Allocate a single physical frame
     fn allocate(&mut self) -> Option<PhysFrame> {
         let info = dtb::info();
+        let (_kstart, kend) = kernel_range();
 
         loop {
             if self.current_region >= info.memory_region_count {
@@ -72,9 +86,9 @@ impl BumpAllocator {
             let region = info.memory_regions[self.current_region].as_ref()?;
             let region_frames = region.size / PAGE_SIZE;
 
-            // Skip kernel region (first 16MB to be safe)
-            let skip_frames = if region.base < 0x100_0000 {
-                (0x100_0000 - region.base) / PAGE_SIZE
+            // Skip kernel region
+            let skip_frames = if region.base < kend {
+                (kend - region.base + PAGE_SIZE - 1) / PAGE_SIZE
             } else {
                 0
             };
@@ -217,6 +231,7 @@ impl BitmapAllocator {
     /// `pre_allocated` is the number of frames already allocated by stage 1
     fn new(pre_allocated: usize) -> Self {
         let info = dtb::info();
+        let (_kstart, kend) = kernel_range();
 
         // Find total frames and base address
         let mut base_addr = usize::MAX;
@@ -229,14 +244,14 @@ impl BitmapAllocator {
             total_frames += region.size / PAGE_SIZE;
         }
 
-        // Skip first 16MB (kernel area)
-        let skip_frames = if base_addr < 0x100_0000 {
-            (0x100_0000 - base_addr) / PAGE_SIZE
+        // Skip kernel area and anything before it in the same region
+        let skip_frames = if base_addr < kend {
+            (kend - base_addr + PAGE_SIZE - 1) / PAGE_SIZE
         } else {
             0
         };
 
-        base_addr = base_addr.max(0x100_0000);
+        base_addr = base_addr.max(kend.next_multiple_of(PAGE_SIZE));
         total_frames = total_frames.saturating_sub(skip_frames);
 
         // Allocate bitmap

@@ -435,3 +435,23 @@ pub unsafe fn configure_tcr() {
 pub fn init() {
     log::info!("ARM64 paging initialized (4KB granule, 48-bit VA)");
 }
+
+/// Enable the MMU
+///
+/// # Safety
+/// Must be called after configuring page tables (TTBR0/1), MAIR, and TCR.
+pub unsafe fn enable_mmu() {
+    let mut sctlr: u64;
+    // SAFETY: Reading and writing SCTLR_EL1 is safe in EL1.
+    // We enable the MMU (bit 0), data cache (bit 2), and instruction cache (bit 12).
+    unsafe {
+        core::arch::asm!("mrs {}, sctlr_el1", out(reg) sctlr);
+        sctlr |= 0x1005; // M, C, I bits
+        core::arch::asm!(
+            "msr sctlr_el1, {}",
+            "isb",
+            in(reg) sctlr,
+            options(nostack, preserves_flags)
+        );
+    }
+}
