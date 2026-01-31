@@ -129,6 +129,29 @@ pub fn init() {
             info!("Failed to load test BPF program");
         }
 
+        // Milestone 2: Verify Timer Interrupt Hook
+        // Program: bpf_trace_printk("Tick\n\0", ...)
+        static TICK: &[u8] = b"Tick\n\0";
+        let tick_ptr = TICK.as_ptr() as u64;
+        let wide_tick = WideInsn::ld_dw_imm(1, tick_ptr);
+
+        let tick_insns = alloc::vec![
+            wide_tick.insn,
+            wide_tick.next,
+            BpfInsn::mov64_imm(2, TICK.len() as i32),
+            BpfInsn::call(2),
+            BpfInsn::exit()
+        ];
+
+        if let Ok(id) = manager.load_raw_program(tick_insns) {
+            info!("Timer BPF program loaded (id={})", id);
+            // Attach to Timer (type 1)
+            // Note: In a real system we might check if attach succeeds
+            if manager.attach(1, id).is_ok() {
+                info!("Attached BPF program {} to Timer", id);
+            }
+        }
+
         Mutex::new(manager)
     });
 

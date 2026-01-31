@@ -1,8 +1,12 @@
-//! Memory-Mapped I/O Abstraction for RP1 peripherals
+//! Memory-Mapped I/O Abstraction for QEMU virt peripherals
 //!
 //! Provides type-safe volatile register access for hardware peripherals.
 //! All register accesses use volatile operations to prevent compiler
 //! optimizations that could reorder or eliminate hardware accesses.
+
+// GIC v2 Base Addresses for QEMU virt
+pub const GICD_BASE: usize = 0x0800_0000;
+pub const GICC_BASE: usize = 0x0801_0000;
 
 use core::ptr::{read_volatile, write_volatile};
 
