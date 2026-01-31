@@ -70,6 +70,7 @@ pub const BPF_ENABLE_STATS: u32 = 32;
 pub const BPF_ITER_CREATE: u32 = 33;
 pub const BPF_LINK_DETACH: u32 = 34;
 pub const BPF_PROG_BIND_MAP: u32 = 35;
+pub const BPF_PROG_LOAD_ELF: u32 = 36; // Custom command for loading ELF files
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
