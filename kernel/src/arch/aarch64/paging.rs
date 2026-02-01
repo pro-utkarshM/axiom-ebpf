@@ -3,12 +3,74 @@
 //! Implements 4-level page tables for ARM64 with 4KB granule and 48-bit VA.
 //! Supports both kernel (TTBR1) and user (TTBR0) address spaces.
 
+use bitflags::bitflags;
 use core::ptr;
 
 use super::mem::{
-    ENTRIES_PER_TABLE, L0_SHIFT, L1_SHIFT, L2_SHIFT, L3_SHIFT, PAGE_SIZE, mair, pte_flags,
+    ENTRIES_PER_TABLE, L0_SHIFT, L1_SHIFT, L2_SHIFT, L3_SHIFT, PAGE_SIZE, mair, pte_flags, phys_to_virt,
 };
 use super::phys::{self};
+
+bitflags! {
+    /// Page table entry flags for AArch64.
+    /// Maps to AArch64 PTE bits (Valid, AP bits, UXN/PXN).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct PageTableFlags: u64 {
+        /// Bit 0: Valid bit.
+        const PRESENT = pte_flags::VALID;
+        /// AP[2] bit: 0 for RW, 1 for RO. WRITABLE means AP[2] = 0.
+        const WRITABLE = 1 << 63; // Placeholder bit to be handled in conversion
+        /// UXN and PXN bits.
+        const NO_EXECUTE = pte_flags::UXN | pte_flags::PXN;
+        /// AP[1] bit: 1 for user access.
+        const USER_ACCESSIBLE = pte_flags::AP_RW_ALL;
+        /// Bit 1: Table bit (0 for block/page).
+        const HUGE_PAGE = 0;
+    }
+}
+
+impl PageTableFlags {
+    /// Convert PageTableFlags to raw AArch64 PTE bits.
+    pub fn to_pte_bits(self) -> u64 {
+        let mut bits = self.bits() & !(1 << 63); // Remove our WRITABLE placeholder
+
+        if self.contains(PageTableFlags::WRITABLE) {
+            bits &= !(1 << 7);
+        } else {
+            bits |= 1 << 7;
+        }
+
+        if self.contains(PageTableFlags::PRESENT) {
+            bits |= pte_flags::AF | pte_flags::SH_INNER | pte_flags::attr_index(mair::NORMAL_WB);
+            bits |= pte_flags::PAGE;
+        }
+
+        bits
+    }
+
+    /// Convert raw AArch64 PTE bits back to PageTableFlags.
+    pub fn from_pte_bits(bits: u64) -> Self {
+        let mut flags = PageTableFlags::empty();
+
+        if bits & pte_flags::VALID != 0 {
+            flags |= PageTableFlags::PRESENT;
+        }
+
+        if bits & (1 << 7) == 0 {
+            flags |= PageTableFlags::WRITABLE;
+        }
+
+        if bits & (pte_flags::UXN | pte_flags::PXN) != 0 {
+            flags |= PageTableFlags::NO_EXECUTE;
+        }
+
+        if bits & (1 << 6) != 0 {
+            flags |= PageTableFlags::USER_ACCESSIBLE;
+        }
+
+        flags
+    }
+}
 
 /// Page table entry for 4KB granule
 #[repr(transparent)]
@@ -33,7 +95,6 @@ impl PageTableEntry {
 
     /// Create a block descriptor (L1/L2 entry for large mappings)
     pub const fn block(phys_addr: usize, flags: u64) -> Self {
-        // Block descriptor has bit[1] = 0, bit[0] = 1
         Self((phys_addr as u64) | (flags & !pte_flags::TABLE) | pte_flags::VALID)
     }
 
@@ -125,7 +186,6 @@ impl PageTableWalker {
     ///
     /// # Safety
     /// The root pointer must be valid and properly aligned.
-    // SAFETY: The caller ensures the root pointer is valid.
     pub unsafe fn new(root: *mut PageTable) -> Self {
         Self { root }
     }
@@ -141,16 +201,14 @@ impl PageTableWalker {
     pub fn map_page(&mut self, virt: usize, phys: usize, flags: u64) -> Result<(), &'static str> {
         let indices = va_to_indices(virt);
 
-        // Walk/create L0 -> L1 -> L2 -> L3 using raw pointers to avoid borrow issues
         let l1_ptr = Self::get_or_create_table_ptr(self.root, indices[0])?;
         let l2_ptr = Self::get_or_create_table_ptr(l1_ptr, indices[1])?;
         let l3_ptr = Self::get_or_create_table_ptr(l2_ptr, indices[2])?;
 
-        // Set L3 entry (page descriptor)
-        // SAFETY: l3_ptr is guaranteed to be a valid pointer to a PageTable by get_or_create_table_ptr.
         let l3 = unsafe { &mut *l3_ptr };
         let entry = l3.entry_mut(indices[3]);
         if entry.is_valid() {
+            log::error!("Page already mapped: virt={:#x}, existing entry={:#x}", virt, entry.raw());
             return Err("Page already mapped");
         }
 
@@ -181,17 +239,10 @@ impl PageTableWalker {
     pub fn unmap_page(&mut self, virt: usize) -> Result<usize, &'static str> {
         let indices = va_to_indices(virt);
 
-        // SAFETY: self.root is checked to be valid when creating the Walker.
         let l0 = unsafe { &mut *self.root };
-        let l1 = self
-            .get_table(l0, indices[0])
-            .ok_or("L1 table not present")?;
-        let l2 = self
-            .get_table(l1, indices[1])
-            .ok_or("L2 table not present")?;
-        let l3 = self
-            .get_table(l2, indices[2])
-            .ok_or("L3 table not present")?;
+        let l1 = self.get_table(l0, indices[0]).ok_or("L1 table not present")?;
+        let l2 = self.get_table(l1, indices[1]).ok_or("L2 table not present")?;
+        let l3 = self.get_table(l2, indices[2]).ok_or("L3 table not present")?;
 
         let entry = l3.entry_mut(indices[3]);
         if !entry.is_valid() {
@@ -201,18 +252,16 @@ impl PageTableWalker {
         let phys = entry.addr();
         entry.clear();
 
-        // Invalidate TLB for this address
         flush_tlb_page(virt);
 
         Ok(phys)
     }
 
-    /// Translate virtual address to physical address
-    pub fn translate(&self, virt: usize) -> Option<usize> {
+    /// Translate virtual address to physical address and raw flags
+    pub fn translate_full(&self, virt: usize) -> Option<(usize, u64)> {
         let indices = va_to_indices(virt);
         let offset = virt & (PAGE_SIZE - 1);
 
-        // SAFETY: self.root is checked to be valid when creating the Walker.
         let l0 = unsafe { &*self.root };
         let l1 = self.get_table_readonly(l0, indices[0])?;
         let l2 = self.get_table_readonly(l1, indices[1])?;
@@ -220,10 +269,15 @@ impl PageTableWalker {
 
         let entry = l3.entry(indices[3]);
         if entry.is_valid() {
-            Some(entry.addr() + offset)
+            Some((entry.addr() + offset, entry.raw()))
         } else {
             None
         }
+    }
+
+    /// Translate virtual address to physical address
+    pub fn translate(&self, virt: usize) -> Option<usize> {
+        self.translate_full(virt).map(|(addr, _)| addr)
     }
 
     /// Get or create a table at the given index (using raw pointers)
@@ -231,28 +285,28 @@ impl PageTableWalker {
         table: *mut PageTable,
         index: usize,
     ) -> Result<*mut PageTable, &'static str> {
-        // SAFETY: table is a valid pointer to a PageTable, and index is within bounds (checked by va_to_indices/callers).
         let entry = unsafe { (*table).entry_mut(index) };
 
         if entry.is_valid() {
             if !entry.is_table() {
+                log::error!("Entry at index {} is block, not table: {:#x}", index, entry.raw());
                 return Err("Entry is block, not table");
             }
-            // Table already exists
-            Ok(entry.addr() as *mut PageTable)
+            Ok(phys_to_virt(entry.addr()) as *mut PageTable)
         } else {
-            // Allocate new table
-            let frame = phys::allocate_frame().ok_or("Out of memory for page table")?;
-            let table_ptr = frame.addr() as *mut PageTable;
+            let frame = phys::allocate_frame::<crate::arch::types::Size4KiB>().ok_or_else(|| {
+                log::error!("Failed to allocate physical frame for page table at index {}", index);
+                "Out of memory for page table"
+            })?;
+            let phys_addr = frame.addr() as usize;
+            let virt_addr = phys_to_virt(phys_addr);
+            let table_ptr = virt_addr as *mut PageTable;
 
-            // Zero the new table
-            // SAFETY: table_ptr points to a newly allocated frame, so it's safe to write to it.
             unsafe {
                 ptr::write_bytes(table_ptr, 0, 1);
             }
 
-            // Set table descriptor
-            *entry = PageTableEntry::table(frame.addr());
+            *entry = PageTableEntry::table(phys_addr);
 
             Ok(table_ptr)
         }
@@ -262,11 +316,7 @@ impl PageTableWalker {
     fn get_table<'a>(&self, table: &'a mut PageTable, index: usize) -> Option<&'a mut PageTable> {
         let entry = table.entry(index);
         if entry.is_valid() && entry.is_table() {
-            let next_table = entry.addr() as *mut PageTable;
-            // SAFETY: We checked the entry is valid and is a table descriptor.
-            // The pointer derived from entry.addr() points to a valid physical page.
-            // We assume an identity mapping or that we are in a context where
-            // physical addresses are accessible (bootstrap).
+            let next_table = phys_to_virt(entry.addr()) as *mut PageTable;
             Some(unsafe { &mut *next_table })
         } else {
             None
@@ -277,9 +327,7 @@ impl PageTableWalker {
     fn get_table_readonly(&self, table: &PageTable, index: usize) -> Option<&PageTable> {
         let entry = table.entry(index);
         if entry.is_valid() && entry.is_table() {
-            let next_table = entry.addr() as *const PageTable;
-            // SAFETY: See get_table. Valid table descriptor implies valid pointer
-            // in the identity-mapped physical memory region.
+            let next_table = phys_to_virt(entry.addr()) as *const PageTable;
             Some(unsafe { &*next_table })
         } else {
             None
@@ -289,7 +337,6 @@ impl PageTableWalker {
 
 /// Flush entire TLB
 pub fn flush_tlb() {
-    // SAFETY: Executing TLB invalidation instructions is safe in EL1.
     unsafe {
         core::arch::asm!(
             "dsb ishst",
@@ -303,7 +350,6 @@ pub fn flush_tlb() {
 
 /// Flush TLB for specific virtual address
 pub fn flush_tlb_page(vaddr: usize) {
-    // SAFETY: Executing TLB invalidation for a specific address is safe in EL1.
     unsafe {
         core::arch::asm!(
             "dsb ishst",
@@ -321,7 +367,6 @@ pub fn flush_tlb_page(vaddr: usize) {
 /// # Safety
 /// The base address must point to a valid page table.
 pub unsafe fn set_ttbr0(base: usize) {
-    // SAFETY: Writing to TTBR0_EL1 is safe in EL1. Caller ensures base is valid.
     unsafe {
         core::arch::asm!(
             "msr ttbr0_el1, {0}",
@@ -338,7 +383,6 @@ pub unsafe fn set_ttbr0(base: usize) {
 /// # Safety
 /// The base address must point to a valid page table.
 pub unsafe fn set_ttbr1(base: usize) {
-    // SAFETY: Writing to TTBR1_EL1 is safe in EL1. Caller ensures base is valid.
     unsafe {
         core::arch::asm!(
             "msr ttbr1_el1, {0}",
@@ -350,10 +394,8 @@ pub unsafe fn set_ttbr1(base: usize) {
     flush_tlb();
 }
 
-/// Get current TTBR0_EL1 value
 pub fn get_ttbr0() -> usize {
     let value: usize;
-    // SAFETY: Reading TTBR0_EL1 is safe.
     unsafe {
         core::arch::asm!(
             "mrs {0}, ttbr0_el1",
@@ -364,10 +406,8 @@ pub fn get_ttbr0() -> usize {
     value
 }
 
-/// Get current TTBR1_EL1 value
 pub fn get_ttbr1() -> usize {
     let value: usize;
-    // SAFETY: Reading TTBR1_EL1 is safe.
     unsafe {
         core::arch::asm!(
             "mrs {0}, ttbr1_el1",
@@ -378,12 +418,7 @@ pub fn get_ttbr1() -> usize {
     value
 }
 
-/// Configure MAIR_EL1 with standard memory attributes
-///
-/// # Safety
-/// Must be called before enabling the MMU with new page tables.
 pub unsafe fn configure_mair() {
-    // SAFETY: Writing to MAIR_EL1 is safe in EL1.
     unsafe {
         core::arch::asm!(
             "msr mair_el1, {0}",
@@ -394,21 +429,7 @@ pub unsafe fn configure_mair() {
     }
 }
 
-/// Configure TCR_EL1 for 48-bit VA, 4KB granule
-///
-/// # Safety
-/// Must be called before enabling the MMU with new page tables.
 pub unsafe fn configure_tcr() {
-    // TCR_EL1 configuration:
-    // - T0SZ = 16 (48-bit VA for TTBR0)
-    // - T1SZ = 16 (48-bit VA for TTBR1)
-    // - TG0 = 0 (4KB granule for TTBR0)
-    // - TG1 = 2 (4KB granule for TTBR1)
-    // - SH0/SH1 = 3 (Inner shareable)
-    // - ORGN0/ORGN1 = 1 (Write-back cacheable)
-    // - IRGN0/IRGN1 = 1 (Write-back cacheable)
-    // - IPS = based on physical address size
-
     let tcr: u64 = 16               // T0SZ = 16 (48-bit VA)
                  | (16 << 16)       // T1SZ = 16 (48-bit VA)
                  | (0b10 << 30)     // TG1 = 4KB
@@ -420,7 +441,6 @@ pub unsafe fn configure_tcr() {
                  | (0b01 << 24)     // IRGN1 = Write-back
                  | (0b101 << 32); // IPS = 48-bit PA (256TB)
 
-    // SAFETY: Writing to TCR_EL1 is safe in EL1.
     unsafe {
         core::arch::asm!(
             "msr tcr_el1, {0}",
@@ -431,7 +451,20 @@ pub unsafe fn configure_tcr() {
     }
 }
 
-/// Initialize paging subsystem
 pub fn init() {
     log::info!("ARM64 paging initialized (4KB granule, 48-bit VA)");
+}
+
+pub unsafe fn enable_mmu() {
+    let mut sctlr: u64;
+    unsafe {
+        core::arch::asm!("mrs {}, sctlr_el1", out(reg) sctlr);
+        sctlr |= 0x1005; // M, C, I bits
+        core::arch::asm!(
+            "msr sctlr_el1, {}",
+            "isb",
+            in(reg) sctlr,
+            options(nostack, preserves_flags)
+        );
+    }
 }

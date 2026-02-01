@@ -3,9 +3,7 @@ use core::slice;
 
 use kernel_vfs::node::VfsNode;
 use spin::mutex::Mutex;
-use x86_64::VirtAddr;
-use x86_64::structures::paging::PhysFrame;
-use x86_64::structures::paging::frame::PhysFrameRangeInclusive;
+use crate::arch::{PhysFrame, PhysFrameRange as PhysFrameRangeInclusive, VirtAddr};
 
 use crate::UsizeExt;
 use crate::mem::virt::OwnedSegment;

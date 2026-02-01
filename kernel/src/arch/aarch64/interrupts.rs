@@ -35,6 +35,7 @@ const TIMER_IRQ: u32 = gic::irq::TIMER_PHYS;
 /// is RP1 internal IRQ 0. A full implementation would need to also read
 /// the RP1's interrupt status registers to determine which peripheral
 /// (GPIO, UART, etc.) raised the interrupt.
+#[cfg(feature = "rpi5")]
 const RP1_GPIO_IRQ: u32 = 261; // GIC SPI 229 = 32 + 229
 
 /// Initialize interrupt controller and timer
@@ -47,16 +48,25 @@ pub fn init() {
     gic::set_priority(TIMER_IRQ, 0x80);
 
     // Enable RP1 GPIO interrupt (routed via PCIe2)
-    gic::enable_irq(RP1_GPIO_IRQ);
-    gic::set_priority(RP1_GPIO_IRQ, 0x80);
+    #[cfg(feature = "rpi5")]
+    {
+        gic::enable_irq(RP1_GPIO_IRQ);
+        gic::set_priority(RP1_GPIO_IRQ, 0x80);
+    }
 
     // Initialize and start the timer
     init_timer();
 
+    #[cfg(feature = "rpi5")]
     log::info!(
         "ARM interrupts initialized (timer={}, gpio={})",
         TIMER_IRQ,
         RP1_GPIO_IRQ
+    );
+    #[cfg(not(feature = "rpi5"))]
+    log::info!(
+        "ARM interrupts initialized (timer={})",
+        TIMER_IRQ
     );
 }
 
@@ -74,17 +84,18 @@ pub extern "C" fn handle_irq() {
 
     // Check for spurious interrupt
     if irq == gic::irq::SPURIOUS {
+        log::trace!("Spurious IRQ received");
         return;
     }
+
+    log::trace!("Handling IRQ {}", irq);
 
     // Dispatch based on IRQ number
     match irq {
         TIMER_IRQ => handle_timer_interrupt(),
+        #[cfg(feature = "rpi5")]
         RP1_GPIO_IRQ => {
-            #[cfg(feature = "rpi5")]
             crate::arch::aarch64::platform::rpi5::gpio::handle_interrupt();
-            #[cfg(not(feature = "rpi5"))]
-            log::warn!("RP1 GPIO IRQ on non-rpi5 build");
         }
         _ => {
             log::warn!("Unhandled IRQ: {}", irq);
@@ -99,18 +110,23 @@ pub extern "C" fn handle_irq() {
 
 /// Handle timer interrupt
 fn handle_timer_interrupt() {
+    log::trace!("Timer interrupt started");
     // Clear and reset timer for next interrupt
     clear_timer_interrupt();
     set_next_timer();
 
     // Run BPF hooks (AttachType::Timer = 1)
     if let Some(manager) = crate::BPF_MANAGER.get() {
+        log::trace!("Executing BPF timer hooks");
         let ctx = kernel_bpf::execution::BpfContext::empty();
         manager.lock().execute_hooks(1, &ctx);
+        log::trace!("BPF timer hooks executed");
     }
 
     // Trigger scheduler tick (may cause context switch)
+    log::trace!("Calling timer_tick");
     super::cpu::timer_tick();
+    log::trace!("timer_tick returned");
 }
 
 /// Clear timer interrupt

@@ -1,5 +1,8 @@
-use x86_64::VirtAddr;
+use crate::VirtAddr;
+
+#[cfg(target_arch = "x86_64")]
 use x86_64::structures::paging::page::PageRangeInclusive;
+#[cfg(target_arch = "x86_64")]
 use x86_64::structures::paging::{Page, PageSize};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -20,6 +23,7 @@ impl Segment {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl<S: PageSize> From<&Segment> for PageRangeInclusive<S> {
     fn from(value: &Segment) -> Self {
         assert!(value.len > 0);

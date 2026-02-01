@@ -5,20 +5,30 @@ use core::fmt::{Debug, Formatter};
 
 use kernel_device::Device;
 use kernel_device::block::{BlockBuf, BlockDevice};
+#[cfg(target_arch = "x86_64")]
 use kernel_pci::PciAddress;
+#[cfg(target_arch = "x86_64")]
 use kernel_pci::config::ConfigurationAccess;
+#[cfg(target_arch = "x86_64")]
 use linkme::distributed_slice;
 use spin::Mutex;
 use spin::rwlock::RwLock;
 use virtio_drivers::device::blk::VirtIOBlk;
+#[cfg(target_arch = "aarch64")]
+use virtio_drivers::transport::mmio::MmioTransport;
+#[cfg(target_arch = "x86_64")]
 use virtio_drivers::transport::pci::PciTransport;
 
 use crate::U64Ext;
 use crate::driver::KernelDeviceId;
 use crate::driver::block::BlockDevices;
+#[cfg(target_arch = "x86_64")]
 use crate::driver::pci::{PCI_DRIVERS, PciDriverDescriptor, PciDriverType};
-use crate::driver::virtio::hal::{HalImpl, transport};
+#[cfg(target_arch = "x86_64")]
+use crate::driver::virtio::hal::transport;
+use crate::driver::virtio::hal::HalImpl;
 
+#[cfg(target_arch = "x86_64")]
 #[distributed_slice(PCI_DRIVERS)]
 static VIRTIO_BLK: PciDriverDescriptor = PciDriverDescriptor {
     name: "virtio-blk",
@@ -27,12 +37,14 @@ static VIRTIO_BLK: PciDriverDescriptor = PciDriverDescriptor {
     init: virtio_init,
 };
 
+#[cfg(target_arch = "x86_64")]
 fn virtio_probe(addr: PciAddress, cam: &dyn ConfigurationAccess) -> bool {
     addr.vendor_id(cam) == 0x1af4
         && (0x1000..=0x103f).contains(&addr.device_id(cam))
         && addr.subsystem_id(cam) == 0x02
 }
 
+#[cfg(target_arch = "x86_64")]
 #[allow(clippy::needless_pass_by_value)] // signature is required like this
 fn virtio_init(addr: PciAddress, cam: Box<dyn ConfigurationAccess>) -> Result<(), Box<dyn Error>> {
     let transport = transport(addr, cam);
@@ -42,7 +54,7 @@ fn virtio_init(addr: PciAddress, cam: Box<dyn ConfigurationAccess>) -> Result<()
     let id = KernelDeviceId::new();
     let device = VirtioBlockDevice {
         id,
-        inner: Arc::new(Mutex::new(blk)),
+        inner: Arc::new(Mutex::new(VirtioBlkInner::Pci(blk))),
     };
     let device = Arc::new(RwLock::new(device));
     BlockDevices::register_block_device(device.clone())?;
@@ -50,10 +62,67 @@ fn virtio_init(addr: PciAddress, cam: Box<dyn ConfigurationAccess>) -> Result<()
     Ok(())
 }
 
+#[cfg(target_arch = "aarch64")]
+#[allow(unused)]
+pub fn init_mmio(transport: MmioTransport) -> Result<(), Box<dyn Error>> {
+    // SAFETY: MMIO transport is backed by kernel-mapped memory that lives for the entire kernel lifetime.
+    let transport: MmioTransport<'static> = unsafe { core::mem::transmute(transport) };
+    let blk = VirtIOBlk::<HalImpl, _>::new(transport)?;
+
+    let id = KernelDeviceId::new();
+    let device = VirtioBlockDevice {
+        id,
+        inner: Arc::new(Mutex::new(VirtioBlkInner::Mmio(blk))),
+    };
+    let device = Arc::new(RwLock::new(device));
+    BlockDevices::register_block_device(device.clone())?;
+
+    Ok(())
+}
+
+#[allow(unused)]
+pub enum VirtioBlkInner {
+    #[cfg(target_arch = "x86_64")]
+    Pci(VirtIOBlk<HalImpl, PciTransport>),
+    #[cfg(target_arch = "aarch64")]
+    Mmio(VirtIOBlk<HalImpl, MmioTransport<'static>>),
+}
+
+#[allow(unused)]
+impl VirtioBlkInner {
+    fn capacity(&self) -> u64 {
+        match self {
+            #[cfg(target_arch = "x86_64")]
+            Self::Pci(blk) => blk.capacity(),
+            #[cfg(target_arch = "aarch64")]
+            Self::Mmio(blk) => blk.capacity(),
+        }
+    }
+
+    fn read_blocks(&mut self, block_num: usize, buf: &mut [u8]) -> virtio_drivers::Result {
+        match self {
+            #[cfg(target_arch = "x86_64")]
+            Self::Pci(blk) => blk.read_blocks(block_num, buf),
+            #[cfg(target_arch = "aarch64")]
+            Self::Mmio(blk) => blk.read_blocks(block_num, buf),
+        }
+    }
+
+    fn write_blocks(&mut self, block_num: usize, buf: &[u8]) -> virtio_drivers::Result {
+        match self {
+            #[cfg(target_arch = "x86_64")]
+            Self::Pci(blk) => blk.write_blocks(block_num, buf),
+            #[cfg(target_arch = "aarch64")]
+            Self::Mmio(blk) => blk.write_blocks(block_num, buf),
+        }
+    }
+}
+
 #[derive(Clone)]
+#[allow(unused)]
 pub struct VirtioBlockDevice {
     id: KernelDeviceId,
-    inner: Arc<Mutex<VirtIOBlk<HalImpl, PciTransport>>>,
+    inner: Arc<Mutex<VirtioBlkInner>>,
 }
 
 impl Debug for VirtioBlockDevice {

@@ -17,11 +17,13 @@ use kernel_virtual_memory::VirtualMemoryManager;
 use log::debug;
 use spin::RwLock;
 use thiserror::Error;
-use x86_64::VirtAddr;
+use crate::arch::{PageSize, Size4KiB, VirtAddr};
+#[cfg(target_arch = "x86_64")]
 use x86_64::registers::model_specific::FsBase;
+#[cfg(target_arch = "x86_64")]
 use x86_64::registers::rflags::RFlags;
+#[cfg(target_arch = "x86_64")]
 use x86_64::structures::idt::InterruptStackFrameValue;
-use x86_64::structures::paging::{PageSize, Size4KiB};
 
 use crate::file::{OpenFileDescription, vfs};
 use crate::mcore::context::ExecutionContext;
@@ -84,7 +86,10 @@ impl Process {
                 address_space: None,
                 lower_half_memory: Arc::new(RwLock::new(VirtualMemoryManager::new(
                     VirtAddr::new(0x00),
+                    #[cfg(target_arch = "x86_64")]
                     0x0000_7FFF_FFFF_FFFF,
+                    #[cfg(target_arch = "aarch64")]
+                    0x0000_FFFF_FFFF_FFFF, // 48-bit user space
                 ))),
                 telemetry: Telemetry::default(),
                 memory_regions: MemoryRegions::new(),
@@ -115,7 +120,10 @@ impl Process {
             address_space: Some(address_space),
             lower_half_memory: Arc::new(RwLock::new(VirtualMemoryManager::new(
                 VirtAddr::new(0xF000),
+                #[cfg(target_arch = "x86_64")]
                 0x0000_7FFF_FFFF_0FFF,
+                #[cfg(target_arch = "aarch64")]
+                0x0000_FFFF_FFFF_0FFF,
             ))),
             telemetry: Telemetry::default(),
             memory_regions: MemoryRegions::new(),
@@ -243,6 +251,7 @@ pub enum CreateProcessError {
 }
 
 extern "C" fn trampoline(_arg: *mut c_void) {
+    log::info!("Trampoline started");
     let ctx = ExecutionContext::load();
     let current_task = ctx.scheduler().current_task();
     let current_process = current_task.process().clone();
@@ -306,7 +315,16 @@ extern "C" fn trampoline(_arg: *mut c_void) {
         let slice = tls_alloc.as_mut();
         slice.copy_from_slice(master_tls.as_ref());
 
+        #[cfg(target_arch = "x86_64")]
         FsBase::write(tls_alloc.start());
+        #[cfg(target_arch = "aarch64")]
+        {
+            // SAFETY: Writing to TPIDR_EL0 is safe in EL1.
+            unsafe {
+                let val = tls_alloc.start().as_u64();
+                core::arch::asm!("msr tpidr_el0, {}", in(reg) val);
+            }
+        }
 
         {
             let mut guard = current_task.tls().write();
@@ -337,6 +355,7 @@ extern "C" fn trampoline(_arg: *mut c_void) {
     }
     assert!(ustack_rsp.is_aligned(16_u64));
 
+    #[cfg(target_arch = "x86_64")]
     let sel = ctx.selectors();
 
     let code_ptr = elf_file.entry(); // TODO: this needs to be computed when the elf file is relocatable
@@ -384,14 +403,29 @@ extern "C" fn trampoline(_arg: *mut c_void) {
         );
     }
 
-    let isfv = InterruptStackFrameValue::new(
-        VirtAddr::new(code_ptr as u64),
-        sel.user_code,
-        RFlags::INTERRUPT_FLAG,
-        ustack_rsp,
-        sel.user_data,
-    );
-    // SAFETY: We have set up the user stack and code pointer correctly, and we are
-    // performing a return to userspace (Ring 3) to start the process execution.
-    unsafe { isfv.iretq() };
+    #[cfg(target_arch = "x86_64")]
+    {
+        let isfv = InterruptStackFrameValue::new(
+            VirtAddr::new(code_ptr as u64),
+            sel.user_code,
+            RFlags::INTERRUPT_FLAG,
+            ustack_rsp,
+            sel.user_data,
+        );
+        // SAFETY: We have set up the user stack and code pointer correctly, and we are
+        // performing a return to userspace (Ring 3) to start the process execution.
+        unsafe { isfv.iretq() };
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        // SAFETY: We have set up the user stack and code pointer correctly.
+        // We are entering userspace (EL0).
+        unsafe {
+            crate::arch::aarch64::context::enter_userspace(
+                code_ptr as usize,
+                ustack_rsp.as_u64() as usize,
+            );
+        }
+    }
 }

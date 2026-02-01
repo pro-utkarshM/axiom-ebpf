@@ -8,9 +8,20 @@
 //! The Raspberry Pi 5 uses a GIC (likely GICv2) for interrupt management.
 
 #[cfg(feature = "rpi5")]
-use super::platform::rpi5::memory_map::{GICC_BASE, GICD_BASE};
+use super::platform::rpi5::memory_map as platform_map;
+
+#[cfg(all(feature = "virt", not(feature = "rpi5")))]
+use super::platform::virt::mmio as platform_map;
+
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
+#[allow(dead_code)]
+mod platform_map {
+    pub const GICC_BASE: usize = 0;
+    pub const GICD_BASE: usize = 0;
+}
 
 /// GIC Distributor register offsets
+#[allow(dead_code)]
 mod gicd {
     /// Distributor Control Register
     pub const CTLR: usize = 0x000;
@@ -37,6 +48,7 @@ mod gicd {
 }
 
 /// GIC CPU Interface register offsets
+#[allow(dead_code)]
 mod gicc {
     /// CPU Interface Control Register
     pub const CTLR: usize = 0x000;
@@ -68,17 +80,17 @@ pub mod irq {
 }
 
 /// GICD base address (set at runtime for flexibility)
-#[cfg(feature = "rpi5")]
-static GICD: usize = GICD_BASE;
+#[cfg(any(feature = "rpi5", feature = "virt"))]
+static GICD: usize = platform_map::GICD_BASE;
 
 /// GICC base address
-#[cfg(feature = "rpi5")]
-static GICC: usize = GICC_BASE;
+#[cfg(any(feature = "rpi5", feature = "virt"))]
+static GICC: usize = platform_map::GICC_BASE;
 
 /// Initialize the GIC
 ///
 /// This configures both the Distributor and CPU Interface.
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 pub fn init() {
     // SAFETY: All register accesses are to valid GIC MMIO addresses defined by the
     // platform memory map. The GIC is being initialized before any interrupts are
@@ -137,14 +149,14 @@ pub fn init() {
     log::info!("GICv2 initialized");
 }
 
-/// Placeholder for non-rpi5 builds
-#[cfg(not(feature = "rpi5"))]
+/// Placeholder for non-supported builds
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
 pub fn init() {
     log::warn!("GIC not initialized (no platform selected)");
 }
 
 /// Enable a specific interrupt
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 pub fn enable_irq(irq: u32) {
     let reg_index = (irq / 32) as usize;
     let bit = 1u32 << (irq % 32);
@@ -159,11 +171,11 @@ pub fn enable_irq(irq: u32) {
     log::debug!("Enabled IRQ {}", irq);
 }
 
-#[cfg(not(feature = "rpi5"))]
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
 pub fn enable_irq(_irq: u32) {}
 
 /// Disable a specific interrupt
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 pub fn disable_irq(irq: u32) {
     let reg_index = (irq / 32) as usize;
     let bit = 1u32 << (irq % 32);
@@ -176,13 +188,13 @@ pub fn disable_irq(irq: u32) {
     }
 }
 
-#[cfg(not(feature = "rpi5"))]
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
 pub fn disable_irq(_irq: u32) {}
 
 /// Acknowledge an interrupt (read IAR)
 ///
 /// Returns the interrupt ID. A value of 1023 indicates a spurious interrupt.
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 pub fn acknowledge() -> u32 {
     // SAFETY: Reading IAR is the standard way to acknowledge an interrupt.
     // This atomically returns the highest priority pending interrupt ID and
@@ -190,13 +202,13 @@ pub fn acknowledge() -> u32 {
     unsafe { read_gicc(gicc::IAR) }
 }
 
-#[cfg(not(feature = "rpi5"))]
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
 pub fn acknowledge() -> u32 {
     irq::SPURIOUS
 }
 
 /// Signal end of interrupt handling
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 pub fn end_of_interrupt(irq: u32) {
     // SAFETY: Writing to EOIR signals completion of interrupt handling.
     // The irq value must be the same as returned by acknowledge().
@@ -206,11 +218,11 @@ pub fn end_of_interrupt(irq: u32) {
     }
 }
 
-#[cfg(not(feature = "rpi5"))]
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
 pub fn end_of_interrupt(_irq: u32) {}
 
 /// Set interrupt priority (0 = highest, 255 = lowest)
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 pub fn set_priority(irq: u32, priority: u8) {
     let reg_index = (irq / 4) as usize;
     let byte_offset = (irq % 4) as usize;
@@ -226,7 +238,7 @@ pub fn set_priority(irq: u32, priority: u8) {
     }
 }
 
-#[cfg(not(feature = "rpi5"))]
+#[cfg(not(any(feature = "rpi5", feature = "virt")))]
 pub fn set_priority(_irq: u32, _priority: u8) {}
 
 // Low-level register access
@@ -234,12 +246,12 @@ pub fn set_priority(_irq: u32, _priority: u8) {}
 // SAFETY for all GIC register access functions:
 // These functions perform MMIO access to GIC registers. They are safe because:
 // 1. The GIC base addresses (GICD_BASE, GICC_BASE) are platform-specific constants
-//    that are correct for the RPi5 platform when rpi5 feature is enabled
+//    that are correct for the RPi5/virt platform when feature is enabled
 // 2. The offsets used are defined by the ARM GICv2 specification
 // 3. The kernel has exclusive access to these hardware registers
 // 4. read_volatile/write_volatile ensure proper memory ordering for MMIO
 
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 /// Read from GIC Distributor register
 ///
 /// # Safety
@@ -252,7 +264,7 @@ unsafe fn read_gicd(offset: usize) -> u32 {
     unsafe { core::ptr::read_volatile((GICD + offset) as *const u32) }
 }
 
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 /// Write to GIC Distributor register
 ///
 /// # Safety
@@ -267,7 +279,7 @@ unsafe fn write_gicd(offset: usize, value: u32) {
     }
 }
 
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 /// Read from GIC CPU Interface register
 ///
 /// # Safety
@@ -280,7 +292,7 @@ unsafe fn read_gicc(offset: usize) -> u32 {
     unsafe { core::ptr::read_volatile((GICC + offset) as *const u32) }
 }
 
-#[cfg(feature = "rpi5")]
+#[cfg(any(feature = "rpi5", feature = "virt"))]
 /// Write to GIC CPU Interface register
 ///
 /// # Safety

@@ -6,8 +6,11 @@ edition = "2024"
 [dependencies]
 kernel_abi = { path = "../kernel_abi" }
 kernel_vfs = { path = "../kernel_vfs" }
+kernel_virtual_memory = { path = "../kernel_virtual_memory" }
 
 log.workspace = true
 spin.workspace = true
 thiserror.workspace = true
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
 x86_64.workspace = true

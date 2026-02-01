@@ -19,6 +19,11 @@
 .global _start_asm
 
 _start_asm:
+    // DEBUG: Write 'Z' to 0x09000000 (UART DR)
+    mov     x9, #0x09000000
+    mov     w10, #0x5a      // 'Z'
+    str     w10, [x9]
+
     // Save DTB address (passed in x0 from firmware)
     mov     x19, x0
 
@@ -67,10 +72,20 @@ _start_asm:
     b       .Lclear_bss
 
 .Lbss_done:
+    // Enable FP/SIMD (Required for Rust)
+    mov     x0, #(3 << 20)      // FPEN = 0b11
+    msr     cpacr_el1, x0
+    isb
+
     // Set up exception vector table
     ldr     x0, =exception_vector_base
     msr     vbar_el1, x0
     isb
+
+    // DEBUG: Write 'Y' to UART
+    mov     x9, #0x09000000
+    mov     w10, #0x59      // 'Y'
+    str     w10, [x9]
 
     // Call Rust entry point with DTB address
     mov     x0, x19             // Restore DTB address

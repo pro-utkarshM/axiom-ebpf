@@ -9,5 +9,7 @@ kernel_memapi = { path = "../kernel_memapi" }
 itertools.workspace = true
 log.workspace = true
 thiserror.workspace = true
-x86_64.workspace = true
 zerocopy.workspace = true
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+x86_64.workspace = true

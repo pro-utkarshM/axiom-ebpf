@@ -216,6 +216,17 @@ pub fn msleep(msecs: u64) {
     nanosleep(&req, core::ptr::null_mut());
 }
 
+pub fn pause() {
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!("pause");
+    }
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        asm!("isb");
+    }
+}
+
 // --- Filesystem ---
 
 pub const SEEK_SET: i32 = 0;

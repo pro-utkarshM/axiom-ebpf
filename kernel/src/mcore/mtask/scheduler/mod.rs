@@ -1,14 +1,21 @@
 use alloc::boxed::Box;
 use core::arch::asm;
+#[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::_fxsave;
 use core::cell::UnsafeCell;
 use core::mem::swap;
 use core::pin::Pin;
 
 use cleanup::TaskCleanup;
+#[cfg(target_arch = "x86_64")]
 use x86_64::instructions::interrupts;
+#[cfg(target_arch = "x86_64")]
 use x86_64::registers::model_specific::FsBase;
 
+#[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+use crate::arch::aarch64::Aarch64 as Arch;
+#[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+use crate::arch::traits::Architecture;
 use crate::mcore::mtask::scheduler::global::GlobalTaskQueue;
 use crate::mcore::mtask::scheduler::switch::switch_impl;
 use crate::mcore::mtask::task::Task;
@@ -48,10 +55,15 @@ impl Scheduler {
     // SAFETY: This function performs a context switch, which is inherently unsafe.
     // It manipulates raw pointers and CPU state.
     pub unsafe fn reschedule(&mut self) {
+        log::trace!("reschedule: entering");
+        #[cfg(target_arch = "x86_64")]
         assert!(!interrupts::are_enabled());
+        #[cfg(all(target_arch = "aarch64", feature = "aarch64_arch"))]
+        assert!(!Arch::are_interrupts_enabled());
 
         // in theory, we could move this to the end of this function, but I'd rather not do this right now
         if let Some(zombie_task) = self.zombie_task.take() {
+            log::trace!("reschedule: cleaning up zombie task {}", zombie_task.id());
             if zombie_task.should_terminate() {
                 TaskCleanup::enqueue(zombie_task);
             } else {
@@ -60,21 +72,33 @@ impl Scheduler {
         }
 
         let (next_task, cr3_value) = {
-            let Some(next_task) = self.next_task() else {
+            let next_task_opt = self.next_task();
+            if next_task_opt.is_none() {
+                log::trace!("reschedule: no next task, staying on current task {}", self.current_task.id());
+            }
+            let Some(next_task) = next_task_opt else {
                 return;
             };
 
+            log::trace!("reschedule: switching to task {}", next_task.id());
+
+            #[cfg(target_arch = "x86_64")]
             let cr3_value = next_task.process().address_space().cr3_value();
+            #[cfg(target_arch = "aarch64")]
+            let cr3_value = next_task.process().address_space().ttbr0_value();
+
             (next_task, cr3_value)
         };
 
         let mut old_task = self.swap_current_task(next_task);
+        log::trace!("reschedule: swapped current task, old task was {}", old_task.id());
         let old_stack_ptr = if old_task.should_terminate() {
             self.dummy_old_stack_ptr.get()
         } else {
             old_task.last_stack_ptr() as *mut usize
         };
 
+        #[cfg(target_arch = "x86_64")]
         if let Some(mut guard) = old_task.fx_area().try_write() {
             if let Some(fx_area) = guard.as_mut() {
                 // SAFETY: We are disabling task switching (FPU context) via CR0.TS.
@@ -88,12 +112,22 @@ impl Scheduler {
 
         if let Some(guard) = self.current_task.tls().try_read() {
             if let Some(tls) = guard.as_ref() {
+                #[cfg(target_arch = "x86_64")]
                 FsBase::write(tls.start());
+                #[cfg(target_arch = "aarch64")]
+                // SAFETY: Writing to TPIDR_EL0 is safe in EL1.
+                unsafe {
+                    let val = tls.start().as_u64();
+                    asm!("msr tpidr_el0, {}", in(reg) val);
+                }
             }
         }
 
         assert!(self.zombie_task.is_none());
         self.zombie_task = Some(old_task);
+
+        log::trace!("reschedule: calling switch_impl (old_sp_ptr={:p}, new_sp={:#x}, ttbr0={:#x})",
+            old_stack_ptr, *self.current_task.last_stack_ptr(), cr3_value);
 
         // SAFETY: Performing the actual context switch.
         // We provide valid pointers to the old task's stack pointer location and the new task's stack.
@@ -105,6 +139,7 @@ impl Scheduler {
                 cr3_value,
             );
         }
+        log::trace!("reschedule: switch_impl returned");
     }
 
     // SAFETY: Low-level context switch implementation.

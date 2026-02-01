@@ -1,4 +1,5 @@
 pub mod helpers;
+pub mod jit_memory;
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
@@ -6,7 +7,9 @@ use alloc::vec::Vec;
 
 use kernel_bpf::bytecode::insn::BpfInsn;
 use kernel_bpf::bytecode::program::BpfProgram;
-use kernel_bpf::execution::{BpfContext, BpfError, BpfExecutor, Interpreter};
+use kernel_bpf::execution::{BpfContext, BpfError, BpfExecutor};
+#[cfg(not(target_arch = "aarch64"))]
+use kernel_bpf::execution::Interpreter;
 use kernel_bpf::loader::BpfLoader;
 use kernel_bpf::maps::{ArrayMap, BpfMap, HashMap as BpfHashMap, RingBufMap};
 use kernel_bpf::profile::ActiveProfile;
@@ -86,8 +89,18 @@ impl BpfManager {
             .get(program_id as usize)
             .ok_or(BpfError::NotLoaded)?;
 
-        let interpreter = Interpreter::<ActiveProfile>::new();
-        interpreter.execute(program, ctx)
+        #[cfg(target_arch = "aarch64")]
+        {
+            use kernel_bpf::execution::Arm64JitExecutor;
+            let executor = Arm64JitExecutor::<ActiveProfile>::new();
+            executor.execute(program, ctx)
+        }
+
+        #[cfg(not(target_arch = "aarch64"))]
+        {
+            let interpreter = Interpreter::<ActiveProfile>::new();
+            interpreter.execute(program, ctx)
+        }
     }
 
     pub fn execute_hooks(&self, attach_type: u32, ctx: &BpfContext) {

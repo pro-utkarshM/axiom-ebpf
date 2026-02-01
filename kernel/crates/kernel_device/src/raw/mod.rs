@@ -2,7 +2,7 @@ use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 
 use spin::RwLock;
-use x86_64::structures::paging::frame::PhysFrameRangeInclusive;
+use kernel_physical_memory::PhysFrameRangeInclusive;
 
 use crate::{Device, DeviceId, RegisterDeviceError};
 

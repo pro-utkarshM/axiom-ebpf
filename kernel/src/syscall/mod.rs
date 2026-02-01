@@ -263,7 +263,7 @@ fn dispatch_sys_write(fd: usize, buf: usize, nbyte: usize) -> Result<usize, Errn
     sys_write(&cx, fd, slice)
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 fn dispatch_sys_bpf(cmd: usize, attr: usize, size: usize) -> Result<usize, Errno> {
     let ret = bpf::sys_bpf(cmd, attr, size);
     Ok(ret as usize)
@@ -344,7 +344,7 @@ fn dispatch_sys_write(_fd: usize, _buf: usize, _nbyte: usize) -> Result<usize, E
     Err(EINVAL)
 }
 
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 fn dispatch_sys_bpf(_cmd: usize, _attr: usize, _size: usize) -> Result<usize, Errno> {
     Err(EINVAL)
 }

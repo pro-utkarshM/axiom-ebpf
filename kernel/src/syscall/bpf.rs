@@ -3,7 +3,7 @@ use core::mem::size_of;
 
 use kernel_abi::{
     BPF_MAP_CREATE, BPF_MAP_DELETE_ELEM, BPF_MAP_LOOKUP_ELEM, BPF_MAP_UPDATE_ELEM, BPF_PROG_ATTACH,
-    BPF_PROG_LOAD, BpfAttr,
+    BPF_PROG_LOAD, BPF_PROG_LOAD_ELF, BpfAttr,
 };
 use kernel_bpf::bytecode::insn::BpfInsn;
 
@@ -309,6 +309,53 @@ pub fn sys_bpf(cmd: usize, attr_ptr: usize, size: usize) -> isize {
                     }
                     Err(e) => {
                         log::error!("sys_bpf: failed to load program: {}", e);
+                        -1
+                    }
+                }
+            } else {
+                log::error!("sys_bpf: BPF_MANAGER not initialized");
+                -1
+            }
+        }
+        BPF_PROG_LOAD_ELF => {
+            log::info!("sys_bpf: PROG_LOAD_ELF");
+
+            let attr = match copy_from_userspace::<BpfAttr>(attr_ptr) {
+                Ok(a) => a,
+                Err(_) => return -1,
+            };
+
+            // reusing insn_cnt for file size and insns for file pointer
+            let file_size = attr.insn_cnt as usize;
+            let file_ptr = attr.insns as usize;
+
+            if file_ptr == 0 || file_size == 0 || file_size > 1024 * 1024 {
+                log::error!(
+                    "sys_bpf: invalid ELF file (ptr={:#x}, size={})",
+                    file_ptr,
+                    file_size
+                );
+                return -1;
+            }
+
+            log::info!("sys_bpf: loading ELF file of {} bytes", file_size);
+
+            let elf_bytes = match read_userspace_slice(file_ptr, file_size) {
+                Ok(bytes) => bytes,
+                Err(_) => {
+                    log::error!("sys_bpf: failed to read ELF bytes from userspace");
+                    return -1;
+                }
+            };
+
+            if let Some(manager) = BPF_MANAGER.get() {
+                match manager.lock().load_program(&elf_bytes) {
+                    Ok(id) => {
+                        log::info!("sys_bpf: ELF program loaded with id {}", id);
+                        id as isize
+                    }
+                    Err(e) => {
+                        log::error!("sys_bpf: failed to load ELF program: {}", e);
                         -1
                     }
                 }

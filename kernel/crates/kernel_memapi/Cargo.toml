@@ -5,4 +5,3 @@ edition = "2024"
 
 [dependencies]
 log.workspace = true
-x86_64.workspace = true

@@ -25,7 +25,7 @@ impl Architecture for Aarch64 {
 
     fn init() {
         // Initialize memory management (physical allocator + page tables)
-        mm::init();
+        crate::mem::init();
 
         // Initialize interrupt controller (GIC)
         interrupts::init();

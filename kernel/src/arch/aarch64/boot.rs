@@ -33,6 +33,13 @@ pub fn boot_info() -> &'static BootInfo {
 /// This function is the kernel entry point and expects to be called with MMU disabled.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
+    // DEBUG: Early print to verify execution on QEMU virt
+    #[cfg(feature = "virt")]
+    {
+        // Write 'A' to PL011 UART DR at 0x09000000
+        (0x0900_0000 as *mut u32).write_volatile(0x41);
+    }
+
     // Initialize boot info
     // SAFETY: This is the first thing we do. dtb_addr is passed in x0 from the bootloader.
     unsafe {
@@ -50,6 +57,8 @@ pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
     // Initialize platform-specific hardware (UART, etc.)
     #[cfg(feature = "rpi5")]
     super::platform::rpi5::init();
+    #[cfg(feature = "virt")]
+    super::platform::virt::init();
 
     // Parse device tree to get memory information
     // SAFETY: dtb_addr is guaranteed to be a valid physical address by the bootloader protocol.
@@ -60,7 +69,7 @@ pub unsafe extern "C" fn _start(dtb_addr: usize) -> ! {
 
     // Jump to kernel main
     // SAFETY: kernel_main is defined in the kernel crate and has the correct signature.
-    unsafe extern "Rust" {
+    unsafe extern "C" {
         fn kernel_main() -> !;
     }
 
