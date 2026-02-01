@@ -211,9 +211,28 @@ impl Arm64Emitter {
         self.emit(insn);
     }
 
+    /// ADD (32-bit immediate): Wd = Wn + imm12
+    fn emit_add32_imm(&mut self, rd: u8, rn: u8, imm: u16) {
+        let insn =
+            0x11000000 | (((imm as u32) & 0xFFF) << 10) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
+    /// ADD (32-bit register): Wd = Wn + Wm
+    fn emit_add32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        let insn = 0x0B000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
     /// SUB (register): Rd = Rn - Rm
     fn emit_sub_reg(&mut self, rd: u8, rn: u8, rm: u8) {
         let insn = 0xCB000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
+    /// SUB (32-bit register): Wd = Wn - Wm
+    fn emit_sub32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        let insn = 0x4B000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
@@ -224,6 +243,13 @@ impl Arm64Emitter {
         self.emit(insn);
     }
 
+    /// SUB (32-bit immediate): Wd = Wn - imm12
+    fn emit_sub32_imm(&mut self, rd: u8, rn: u8, imm: u16) {
+        let insn =
+            0x51000000 | (((imm as u32) & 0xFFF) << 10) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
     /// MUL: Rd = Rn * Rm
     fn emit_mul(&mut self, rd: u8, rn: u8, rm: u8) {
         // MADD Xd, Xn, Xm, XZR (multiply-add with zero)
@@ -231,9 +257,22 @@ impl Arm64Emitter {
         self.emit(insn);
     }
 
+    /// MUL (32-bit): Wd = Wn * Wm
+    fn emit_mul32(&mut self, rd: u8, rn: u8, rm: u8) {
+        // MADD Wd, Wn, Wm, WZR
+        let insn = 0x1B007C00 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
     /// UDIV: Rd = Rn / Rm (unsigned)
     fn emit_udiv(&mut self, rd: u8, rn: u8, rm: u8) {
         let insn = 0x9AC00800 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
+    /// UDIV (32-bit): Wd = Wn / Wm (unsigned)
+    fn emit_udiv32(&mut self, rd: u8, rn: u8, rm: u8) {
+        let insn = 0x1AC00800 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
@@ -250,15 +289,33 @@ impl Arm64Emitter {
         self.emit(insn);
     }
 
+    /// AND (32-bit register): Wd = Wn & Wm
+    fn emit_and32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        let insn = 0x0A000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
     /// ORR (register): Rd = Rn | Rm
     fn emit_orr_reg(&mut self, rd: u8, rn: u8, rm: u8) {
         let insn = 0xAA000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
+    /// ORR (32-bit register): Wd = Wn | Wm
+    fn emit_orr32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        let insn = 0x2A000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
     /// EOR (register): Rd = Rn ^ Rm
     fn emit_eor_reg(&mut self, rd: u8, rn: u8, rm: u8) {
         let insn = 0xCA000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
+    /// EOR (32-bit register): Wd = Wn ^ Wm
+    fn emit_eor32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        let insn = 0x4A000000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
@@ -269,10 +326,24 @@ impl Arm64Emitter {
         self.emit(insn);
     }
 
+    /// LSL (32-bit register): Wd = Wn << Wm
+    fn emit_lsl32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        // LSLV Wd, Wn, Wm
+        let insn = 0x1AC02000 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
     /// LSR (register): Rd = Rn >> Rm (unsigned)
     fn emit_lsr_reg(&mut self, rd: u8, rn: u8, rm: u8) {
         // LSRV Xd, Xn, Xm
         let insn = 0x9AC02400 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
+    /// LSR (32-bit register): Wd = Wn >> Wm (unsigned)
+    fn emit_lsr32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        // LSRV Wd, Wn, Wm
+        let insn = 0x1AC02400 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
         self.emit(insn);
     }
 
@@ -283,10 +354,23 @@ impl Arm64Emitter {
         self.emit(insn);
     }
 
+    /// ASR (32-bit register): Wd = Wn >> Wm (signed)
+    fn emit_asr32_reg(&mut self, rd: u8, rn: u8, rm: u8) {
+        // ASRV Wd, Wn, Wm
+        let insn = 0x1AC02800 | ((rm as u32) << 16) | ((rn as u32) << 5) | ((rd as u32) & 0x1f);
+        self.emit(insn);
+    }
+
     /// NEG: Rd = -Rm
     fn emit_neg(&mut self, rd: u8, rm: u8) {
         // SUB Xd, XZR, Xm
         self.emit_sub_reg(rd, 31, rm);
+    }
+
+    /// NEG (32-bit): Wd = -Wm
+    fn emit_neg32(&mut self, rd: u8, rm: u8) {
+        // SUB Wd, WZR, Wm
+        self.emit_sub32_reg(rd, 31, rm);
     }
 
     /// LDR (register + immediate offset)
@@ -351,11 +435,26 @@ impl Arm64Emitter {
         self.emit(insn);
     }
 
+    /// CMP (32-bit register): flags = Wn - Wm
+    fn emit_cmp32_reg(&mut self, rn: u8, rm: u8) {
+        // SUBS WZR, Wn, Wm
+        let insn = 0x6B00001F | ((rm as u32) << 16) | ((rn as u32) << 5);
+        self.emit(insn);
+    }
+
     /// CMP (immediate): flags = Rn - imm12
     #[allow(dead_code)]
     fn emit_cmp_imm(&mut self, rn: u8, imm: u16) {
         // SUBS XZR, Xn, #imm
         let insn = 0xF100001F | (((imm as u32) & 0xFFF) << 10) | ((rn as u32) << 5);
+        self.emit(insn);
+    }
+
+    /// CMP (32-bit immediate): flags = Wn - imm12
+    #[allow(dead_code)]
+    fn emit_cmp32_imm(&mut self, rn: u8, imm: u16) {
+        // SUBS WZR, Wn, #imm
+        let insn = 0x7100001F | (((imm as u32) & 0xFFF) << 10) | ((rn as u32) << 5);
         self.emit(insn);
     }
 
@@ -392,6 +491,13 @@ impl Arm64Emitter {
     fn emit_tst_reg(&mut self, rn: u8, rm: u8) {
         // ANDS XZR, Xn, Xm
         let insn = 0xEA00001F | ((rm as u32) << 16) | ((rn as u32) << 5);
+        self.emit(insn);
+    }
+
+    /// TST (test bits 32-bit): flags = Wn & Wm
+    fn emit_tst32_reg(&mut self, rn: u8, rm: u8) {
+        // ANDS WZR, Wn, Wm
+        let insn = 0x6A00001F | ((rm as u32) << 16) | ((rn as u32) << 5);
         self.emit(insn);
     }
 
@@ -624,19 +730,27 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
                 match alu_op {
                     AluOp::Add => {
                         if insn.imm >= 0 && insn.imm < 4096 {
-                            emitter.emit_add_imm(dst, dst, insn.imm as u16);
+                            if is_64bit {
+                                emitter.emit_add_imm(dst, dst, insn.imm as u16);
+                            } else {
+                                emitter.emit_add32_imm(dst, dst, insn.imm as u16);
+                            }
                         } else {
                             // Load immediate to temp register
                             emitter.emit_mov64_imm(X9, insn.imm as i64);
-                            emitter.emit_add_reg(dst, dst, X9);
+                            self.emit_alu_reg(emitter, AluOp::Add, dst, X9, is_64bit)?;
                         }
                     }
                     AluOp::Sub => {
                         if insn.imm >= 0 && insn.imm < 4096 {
-                            emitter.emit_sub_imm(dst, dst, insn.imm as u16);
+                            if is_64bit {
+                                emitter.emit_sub_imm(dst, dst, insn.imm as u16);
+                            } else {
+                                emitter.emit_sub32_imm(dst, dst, insn.imm as u16);
+                            }
                         } else {
                             emitter.emit_mov64_imm(X9, insn.imm as i64);
-                            emitter.emit_sub_reg(dst, dst, X9);
+                            self.emit_alu_reg(emitter, AluOp::Sub, dst, X9, is_64bit)?;
                         }
                     }
                     AluOp::Mov => {
@@ -653,38 +767,48 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
                     | AluOp::Arsh => {
                         // Load immediate to temp, then do reg op
                         emitter.emit_mov64_imm(X9, insn.imm as i64);
-                        self.emit_alu_reg(emitter, alu_op, dst, X9)?;
+                        self.emit_alu_reg(emitter, alu_op, dst, X9, is_64bit)?;
                     }
                     AluOp::Neg => {
-                        emitter.emit_neg(dst, dst);
+                        if is_64bit {
+                            emitter.emit_neg(dst, dst);
+                        } else {
+                            emitter.emit_neg32(dst, dst);
+                        }
                     }
                     AluOp::End => {
-                        // Byte swap based on immediate value (16, 32, or 64 bits)
+                        // BPF_TO_LE (Little Endian - no-op on AArch64, just truncate)
                         match insn.imm {
-                            16 => {
-                                // Swap bytes in 16-bit value
-                                emitter.emit_rev16(dst, dst);
-                                // Zero-extend to clear upper bits
-                                emitter.emit_uxth(dst, dst);
-                            }
-                            32 => {
-                                // Swap bytes in 32-bit value
-                                emitter.emit_rev32(dst, dst);
-                                // Zero-extend to clear upper bits
-                                emitter.emit_uxtw(dst, dst);
-                            }
-                            64 => {
-                                // Swap all bytes in 64-bit value
-                                emitter.emit_rev64(dst, dst);
-                            }
+                            16 => emitter.emit_uxth(dst, dst),
+                            32 => emitter.emit_uxtw(dst, dst),
+                            64 => (), // No-op
                             _ => return Err(Arm64JitError::UnsupportedInstruction),
                         }
+                        // Return early to avoid implicit 32-bit zero-extension for 64-bit ops
+                        return Ok(());
                     }
                 }
             }
             SourceType::Reg => {
                 let src = BPF_TO_ARM64[insn.src_reg() as usize];
                 match alu_op {
+                    AluOp::End => {
+                        // BPF_TO_BE (Big Endian)
+                        match insn.imm {
+                            16 => {
+                                emitter.emit_rev16(dst, dst);
+                                emitter.emit_uxth(dst, dst);
+                            }
+                            32 => {
+                                emitter.emit_rev32(dst, dst);
+                                emitter.emit_uxtw(dst, dst);
+                            }
+                            64 => emitter.emit_rev64(dst, dst),
+                            _ => return Err(Arm64JitError::UnsupportedInstruction),
+                        }
+                        // Return early to avoid implicit 32-bit zero-extension for 64-bit ops
+                        return Ok(());
+                    }
                     AluOp::Mov => {
                         emitter.emit_mov_reg(dst, src);
                     }
@@ -692,7 +816,7 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
                         emitter.emit_neg(dst, dst);
                     }
                     _ => {
-                        self.emit_alu_reg(emitter, alu_op, dst, src)?;
+                        self.emit_alu_reg(emitter, alu_op, dst, src, is_64bit)?;
                     }
                 }
             }
@@ -713,25 +837,48 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
         op: AluOp,
         dst: u8,
         src: u8,
+        is_64bit: bool,
     ) -> Result<(), Arm64JitError> {
-        match op {
-            AluOp::Add => emitter.emit_add_reg(dst, dst, src),
-            AluOp::Sub => emitter.emit_sub_reg(dst, dst, src),
-            AluOp::Mul => emitter.emit_mul(dst, dst, src),
-            AluOp::Div => emitter.emit_udiv(dst, dst, src),
-            AluOp::Mod => {
-                // ARM64 doesn't have MOD, compute: dst = dst - (dst/src)*src
-                emitter.emit_udiv(X9, dst, src); // X9 = dst / src
-                emitter.emit_mul(X9, X9, src); // X9 = X9 * src
-                emitter.emit_sub_reg(dst, dst, X9); // dst = dst - X9
+        if is_64bit {
+            match op {
+                AluOp::Add => emitter.emit_add_reg(dst, dst, src),
+                AluOp::Sub => emitter.emit_sub_reg(dst, dst, src),
+                AluOp::Mul => emitter.emit_mul(dst, dst, src),
+                AluOp::Div => emitter.emit_udiv(dst, dst, src),
+                AluOp::Mod => {
+                    // ARM64 doesn't have MOD, compute: dst = dst - (dst/src)*src
+                    emitter.emit_udiv(X9, dst, src); // X9 = dst / src
+                    emitter.emit_mul(X9, X9, src); // X9 = X9 * src
+                    emitter.emit_sub_reg(dst, dst, X9); // dst = dst - X9
+                }
+                AluOp::And => emitter.emit_and_reg(dst, dst, src),
+                AluOp::Or => emitter.emit_orr_reg(dst, dst, src),
+                AluOp::Xor => emitter.emit_eor_reg(dst, dst, src),
+                AluOp::Lsh => emitter.emit_lsl_reg(dst, dst, src),
+                AluOp::Rsh => emitter.emit_lsr_reg(dst, dst, src),
+                AluOp::Arsh => emitter.emit_asr_reg(dst, dst, src),
+                _ => return Err(Arm64JitError::UnsupportedInstruction),
             }
-            AluOp::And => emitter.emit_and_reg(dst, dst, src),
-            AluOp::Or => emitter.emit_orr_reg(dst, dst, src),
-            AluOp::Xor => emitter.emit_eor_reg(dst, dst, src),
-            AluOp::Lsh => emitter.emit_lsl_reg(dst, dst, src),
-            AluOp::Rsh => emitter.emit_lsr_reg(dst, dst, src),
-            AluOp::Arsh => emitter.emit_asr_reg(dst, dst, src),
-            _ => return Err(Arm64JitError::UnsupportedInstruction),
+        } else {
+            match op {
+                AluOp::Add => emitter.emit_add32_reg(dst, dst, src),
+                AluOp::Sub => emitter.emit_sub32_reg(dst, dst, src),
+                AluOp::Mul => emitter.emit_mul32(dst, dst, src),
+                AluOp::Div => emitter.emit_udiv32(dst, dst, src),
+                AluOp::Mod => {
+                    // ARM64 doesn't have MOD, compute: dst = dst - (dst/src)*src
+                    emitter.emit_udiv32(X9, dst, src); // X9 = dst / src
+                    emitter.emit_mul32(X9, X9, src); // X9 = X9 * src
+                    emitter.emit_sub32_reg(dst, dst, X9); // dst = dst - X9
+                }
+                AluOp::And => emitter.emit_and32_reg(dst, dst, src),
+                AluOp::Or => emitter.emit_orr32_reg(dst, dst, src),
+                AluOp::Xor => emitter.emit_eor32_reg(dst, dst, src),
+                AluOp::Lsh => emitter.emit_lsl32_reg(dst, dst, src),
+                AluOp::Rsh => emitter.emit_lsr32_reg(dst, dst, src),
+                AluOp::Arsh => emitter.emit_asr32_reg(dst, dst, src),
+                _ => return Err(Arm64JitError::UnsupportedInstruction),
+            }
         }
         Ok(())
     }
@@ -759,6 +906,7 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
         }
 
         let target = insn.offset; // Will be patched later
+        let is_jmp32 = insn.class() == Some(OpcodeClass::Jmp32);
 
         if jmp_op.is_unconditional() {
             // JA: unconditional jump
@@ -773,11 +921,19 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
                 match insn.source_type() {
                     SourceType::Imm => {
                         emitter.emit_mov64_imm(X9, insn.imm as i64);
-                        emitter.emit_tst_reg(dst, X9);
+                        if is_jmp32 {
+                            emitter.emit_tst32_reg(dst, X9);
+                        } else {
+                            emitter.emit_tst_reg(dst, X9);
+                        }
                     }
                     SourceType::Reg => {
                         let src = BPF_TO_ARM64[insn.src_reg() as usize];
-                        emitter.emit_tst_reg(dst, src);
+                        if is_jmp32 {
+                            emitter.emit_tst32_reg(dst, src);
+                        } else {
+                            emitter.emit_tst_reg(dst, src);
+                        }
                     }
                 }
                 // JSET jumps if (dst & src) != 0, i.e., NE condition
@@ -789,11 +945,19 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
             match insn.source_type() {
                 SourceType::Imm => {
                     emitter.emit_mov64_imm(X9, insn.imm as i64);
-                    emitter.emit_cmp_reg(dst, X9);
+                    if is_jmp32 {
+                        emitter.emit_cmp32_reg(dst, X9);
+                    } else {
+                        emitter.emit_cmp_reg(dst, X9);
+                    }
                 }
                 SourceType::Reg => {
                     let src = BPF_TO_ARM64[insn.src_reg() as usize];
-                    emitter.emit_cmp_reg(dst, src);
+                    if is_jmp32 {
+                        emitter.emit_cmp32_reg(dst, src);
+                    } else {
+                        emitter.emit_cmp_reg(dst, src);
+                    }
                 }
             }
 
@@ -905,8 +1069,9 @@ impl<P: PhysicalProfile> Arm64JitCompiler<P> {
             }
             Some(OpcodeClass::St) => {
                 // Store immediate - load to temp first
-                emitter.emit_mov64_imm(X7, insn.imm as i64);
-                emitter.emit_str(X7, dst, insn.offset, size);
+                // Use X9 (scratch) instead of X7 (R0) to avoid clobbering return value register
+                emitter.emit_mov64_imm(X9, insn.imm as i64);
+                emitter.emit_str(X9, dst, insn.offset, size);
             }
             _ => return Err(Arm64JitError::UnsupportedInstruction),
         }
@@ -1237,6 +1402,37 @@ mod tests {
         let compiler = Arm64JitCompiler::<ActiveProfile>::new();
         let result = compiler.compile(&program);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_compile_byte_swap() {
+        // Test endianness conversion (AluOp::End)
+        // 1. TO_LE (SourceType::Imm) on LE machine = truncation/zero-extension
+        let program_le = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
+            .insn(BpfInsn::mov64_imm(0, 0x12345678)) // r0 = 0x12345678
+            .insn(BpfInsn::new(0xd4, 0, 0, 0, 16))   // r0 = to_le16(r0) -> 0x5678
+            .exit()
+            .build()
+            .expect("valid program");
+
+        let compiler = Arm64JitCompiler::<ActiveProfile>::new();
+        let result = compiler.compile(&program_le);
+        assert!(result.is_ok(), "Failed to compile TO_LE");
+
+        // 2. TO_BE (SourceType::Reg) on LE machine = bswap
+        // Note: opcode 0xdc = class 4 (ALU32/END) | source 1 (REG/BE) | op 0xd0 (END) ?
+        // Actually:
+        // class 4 (0x04) is Alu32. But End is Alu32 (0x04) | 0xd0 = 0xd4.
+        // Source bit is 0x08. So 0xdc is correct for TO_BE.
+        let program_be = ProgramBuilder::<ActiveProfile>::new(BpfProgType::SocketFilter)
+            .insn(BpfInsn::mov64_imm(0, 0x12345678))
+            .insn(BpfInsn::new(0xdc, 0, 0, 0, 32))   // r0 = to_be32(r0) -> 0x78563412
+            .exit()
+            .build()
+            .expect("valid program");
+
+        let result = compiler.compile(&program_be);
+        assert!(result.is_ok(), "Failed to compile TO_BE");
     }
 
     #[test]
